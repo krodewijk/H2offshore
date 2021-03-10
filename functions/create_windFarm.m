@@ -1,16 +1,11 @@
 % Search in 10x10 grid and create wind farms
-wfs = Windfarm.empty;
+props;
 
-[rows, cols] = size(g.lat);
-wf_index = 1;
+g.resetMask();
 
-fprintf(1,'\nProgress:    ');
-for x = 1:10:(rows-1)
-    for y = 1:10:(cols-1)
-        wfs(wf_index) = Windfarm(g, x, y, wf_index);
-        wf_index = wf_index + 1;
-        %disp([num2str(x), ', ', num2str(y)]);
-    end
-    fprintf(1,'\b\b\b\b%3.0f%%',(x/rows*100));
-end
-fprintf(1,'\n');
+farm = Windfarm(g, 300, 270, false);
+farm.connect2backbone(g, 50);
+
+%%
+farm.plot(g);
+g.plot_pipes();

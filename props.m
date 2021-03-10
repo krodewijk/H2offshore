@@ -7,7 +7,7 @@ global property;
 % 'H2inTurb'     --> Create H2 directly in turbine 
 % 'fullElectric' --> Onshore electrolyzer
 % 'electricToH2' --> Offshore electrolyzer
-property.scenario = 'electricToH2';
+property.scenario = 'H2inTurb';
 
 
 %----------------------
@@ -69,6 +69,7 @@ property.shoreConnectionPoint = "NL";
 property.clusterMappingOption = "size"; % see explanation above
 property.clusterPower = 10; % GW (maximum cluster power)
 property.clusterDim = [20, 20]; % [X,Y] in grid coordinates (so X by Y property.resolution meters)
+property.bbConnectionPlatform = true;  % Need some kind of transformer/compressor substation near the backbone
 
 %----------------------
 %     WINDFARMS          

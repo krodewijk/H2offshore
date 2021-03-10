@@ -32,6 +32,9 @@ classdef Cluster < handle
          sub2mainInT;
          sub2mainoutT;
          
+         bbPlatform;
+         bbConnectionPlatformPresent;
+         
          xlim;
          ylim;
     end
@@ -42,6 +45,8 @@ classdef Cluster < handle
             global property;
             obj.farmDim = property.farmDim;
             obj.minTurbinesPerFarm = property.farmMinTurbs;
+            obj.bbConnectionPlatformPresent = property.bbConnectionPlatform;
+            obj.clusterSubStation = property.clusterSubStation;
             
             obj.hub2shoreCableVRating = property.hub2shoreCableVRating;
             obj.hub2shoreCableIRating = property.hub2shoreCableIRating;
@@ -327,7 +332,7 @@ classdef Cluster < handle
         end
         
         function connect2backbone(obj, grid, threshold)
-            disp(['Threshold: ', threshold]);
+            disp(['Threshold: ', num2str(threshold)]);
             obj.cables2shore = Cable.empty;
             obj.pipes2shore = Pipe.empty;
             
@@ -415,11 +420,11 @@ classdef Cluster < handle
             % Check if shortest vector is found otherwise try again with a
             % higher threshold
             if isnan(shortestDist)
-                obj.connect2backbone(grid, threshold + 50);
+                obj.connect2backbone(grid, threshold + 10);
                 return;
             end
             
-            end_coords = hubCoords + shortestVec;
+            end_coords = hubCoords' + shortestVec;
             
             % Convert connection point back to intrinsic values
             [lat, lon] = projinv(grid.projection, end_coords(1), end_coords(2));
@@ -428,7 +433,7 @@ classdef Cluster < handle
             
             if obj.scenario == "fullElectric"
                 % Create cable
-                cable = Cable(obj.hub2shoreCableVRating, obj.hub2shoreCableIRating, obj.hub2shoreCableAC);
+                cable = Cable(obj.hub2shoreCableVRating, obj.hub2shoreCableIRating, obj.hub2shoreCableFreq, obj.hub2shoreCableCross, obj.hub2shoreCableCap);
                 % Add connections
                 cable.add_connection(grid, obj.platform.node);
                 cable.add_connection(grid, connectionNode);
@@ -437,21 +442,35 @@ classdef Cluster < handle
                 for i = 1:numCables
                     obj.cables2shore(end+1) = cable;
                 end
+                
+                % Add a platform at the connection point with the backbone
+                if obj.bbConnectionPlatformPresent
+                    obj.bbPlatform = Platform(grid, xIntrin,yIntrin);
+                end
             else
                 % Create pipe
-                pipe = Pipe(obj.sub2mainPipeRadius, obj.sub2mainPipePressure, obj.sub2mainPipeGasV);
+                pipe = Pipe(obj.sub2mainPipeRadius, obj.sub2mainPipePressure, obj.sub2mainPipeEff, obj.sub2mainInT, obj.sub2mainoutT);
                 % Add connections
                 pipe.add_connection(grid, obj.platform.node);
                 pipe.add_connection(grid, connectionNode);
 
                 numPipes = ceil(obj.outputPower / pipe.power_rating);
+                if numPipes == 0
+                    numPipes = 1;
+                end
                 for i = 1:numPipes
                     obj.pipes2shore(end+1) = pipe;
+                end
+                
+                % Add a platform at the connection point with the backbone
+                if obj.bbConnectionPlatformPresent
+                    obj.bbPlatform = Platform(grid, xIntrin,yIntrin);
                 end
             end
         end
         
         function plot(obj, grid)
+            hold on;
             coastLines = load("coastlines");
             cities = shaperead('worldcities', 'UseGeoCoords', true);
             citiesLat = zeros(max(size(cities),1));
@@ -470,7 +489,7 @@ classdef Cluster < handle
                 hold on;
             end
             
-            % Plot cable2shore
+            % Plot cable2backbone
             numCables = numel(obj.cables2shore);
             for i = 1:numCables
                 lenCable = max(size(obj.cables2shore(i).xIntrin));
@@ -480,11 +499,11 @@ classdef Cluster < handle
                     xCoord(end+1) = grid.X(obj.cables2shore(i).xIntrin(k), obj.cables2shore(i).yIntrin(k));
                     yCoord(end+1) = grid.Y(obj.cables2shore(i).xIntrin(k), obj.cables2shore(i).yIntrin(k));
                 end
-                plot(xCoord, yCoord,'y', 'LineWidth',5);
+                plot(xCoord, yCoord,'y', 'LineWidth',5, 'Color', '#15d406');
                 hold on;
             end
             
-            % Plot pipes2shore
+            % Plot pipes2backbone
             numPipes = numel(obj.pipes2shore);
             for i = 1:numPipes
                 lenCable = max(size(obj.pipes2shore(i).xIntrin));
@@ -494,12 +513,17 @@ classdef Cluster < handle
                     xCoord(end+1) = grid.X(obj.pipes2shore(i).xIntrin(k), obj.pipes2shore(i).yIntrin(k));
                     yCoord(end+1) = grid.Y(obj.pipes2shore(i).xIntrin(k), obj.pipes2shore(i).yIntrin(k));
                 end
-                plot(xCoord, yCoord,'b', 'LineWidth',5);
+                plot(xCoord, yCoord,'b', 'LineWidth',5, 'Color', '#15d406');
                 hold on;
             end
             
-            % Plot platform
+            % Plot platforms
             plot(grid.X(obj.platform.xIntrin, obj.platform.yIntrin), grid.Y(obj.platform.xIntrin, obj.platform.yIntrin), "sb", 'MarkerSize', 10, 'LineWidth', 7);
+            
+            % Add a platform at the connection point with the backbone
+            if obj.bbConnectionPlatformPresent
+                plot(grid.X(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), grid.Y(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), "sb", 'MarkerSize', 10, 'LineWidth', 7);
+            end
             
             % Plot surroundings (coastlines + cities)
             [xProjCoast, yProjCoast] = projfwd(grid.projection, coastLines.coastlat, coastLines.coastlon);

@@ -444,6 +444,7 @@ classdef grid < handle
         end
         
         function plot_pipes(obj)
+            hold on;
             coastLines = load("coastlines");
             cities = shaperead('worldcities', 'UseGeoCoords', true);
             citiesLat = zeros(max(size(cities),1));
@@ -455,10 +456,10 @@ classdef grid < handle
                 citiesLon(i) = cities(i).Lon;
             end
             
-            % Plot pipes2shore
+            % Plot backline
             numPipes = numel(obj.shapes.pipelines);
             for i = 1:numPipes
-                lenCable = numel(obj.shapes.pipelines(i).xIntrin);
+                lenCable = numel(obj.shapes.pipelines(i).Lat);
                 xCoord = [];
                 yCoord = [];
                 
@@ -471,7 +472,7 @@ classdef grid < handle
 %                 
 %                     end
 %                 end
-                plot(xCoord, yCoord,'b', 'LineWidth',5);
+                plot(xCoord, yCoord,'b', 'LineWidth', 5, 'Color', '#349eeb');
                 hold on;
             end
 

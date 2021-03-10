@@ -62,7 +62,7 @@ classdef Pipe < Transport
             
             % Calculate pressure drop
             % Calculate actual gas flow
-            obj.inputPower = 120e6;
+            %obj.inputPower = 120e6;
             gasFlow = obj.inputPower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
             
             obj.outPressure = obj.pressure_drop(gasFlow);

@@ -35,13 +35,11 @@ classdef Transport < handle
                 success = false;
                 return;
             end
-            if(max(size(obj.connected.turbines)) > 1)
-                obj.update_connections(grid);
-            elseif (numel(obj.connected.turbines) == 1)
-                obj.nodes = obj.connected.turbines.node;
-            end
-            obj.calculate_power();
-            obj.calc_length(grid);
+%             if(max(size(obj.connected.turbines)) > 1)
+%                 obj.update_connections(grid);
+%             elseif (numel(obj.connected.turbines) == 1)
+%                 obj.nodes = obj.connected.turbines.node;
+%             end
         end
         
         function remove_turbine(obj, grid, Turbine)
@@ -107,6 +105,11 @@ classdef Transport < handle
         end
         
         function update_connections(obj, grid)
+            if numel(obj.connected.turbines) == 1
+                obj.nodes = obj.connected.turbines.node;
+                return
+            end
+            
             % Sort Turbine array on nodeNumber
             numTurbs = max(size(obj.connected.turbines));
             sorted_turbs = Turbine.empty;

@@ -18,6 +18,8 @@ classdef Windfarm < handle
         connectionNodes = [];
         
         subPlatform;
+        bbConnectionPlatformPresent;
+        bbPlatform;
         
         turbines = Turbine.empty; % array of included turbines
         cables = Cable.empty; % turbine cables
@@ -53,6 +55,7 @@ classdef Windfarm < handle
             obj.start_y = start_y;
             obj.dimensions = property.farmDim;
             obj.centralSubPresent = central_sub;
+            obj.bbConnectionPlatformPresent = property.bbConnectionPlatform;
             
             obj.turb2subCableVRating = property.turb2subCableVRating; % kV 
             obj.turb2subCableIRating = property.turb2subCableIRating; % A
@@ -209,6 +212,7 @@ classdef Windfarm < handle
 
                 % Add turbine to cable
                 cab.add_turbine(grid, obj.turbines(i));
+                cab.update_connections(grid);
                 
                 % Connect to subplatform
                 cab.add_connection(grid, obj.subPlatform.node);
@@ -229,6 +233,7 @@ classdef Windfarm < handle
                 % Add turbine to cable
                 if ~cab.add_turbine(grid, obj.turbines(i))
                     % No space anymore, save current and create new cable
+                    cab.update_connections(grid);
                     obj.cables(end+1) = cab;
                     obj.connectionNodes(1,end+1) = cab.startNode;
                     obj.connectionNodes(2,end) = cab.endNode;
@@ -237,28 +242,32 @@ classdef Windfarm < handle
                 end
             end
             % Save last cable also...
+            cab.update_connections(grid);
             obj.cables(end+1) = cab;
         end
         
         function createPipes(obj, grid)
+            % Pipes are shared
             obj.pipes = Pipe.empty;
             obj.connectionNodes = [];
             % Go over the array with turbines
             % It is expected the order of the array is in nice order.
             numTurbs = max(size(obj.turbines));
-            pipe = Pipe(obj.turb2hubPipeRadius, obj.turb2hubPipePressure, obj.turb2hubPipeGasV);
+            pipe = Pipe(obj.turb2subPipeRadius, obj.turb2subPipePressure, obj.turb2subPipeEff, obj.turb2subInT, obj.turb2suboutT);
             for i = 1:numTurbs
                 % Add turbine to cable
                 if ~pipe.add_turbine(grid, obj.turbines(i))
+                    pipe.update_connections(grid);
                     % No space anymore, save current and create new cable
                     obj.pipes(end+1) = pipe;
                     obj.connectionNodes(1,end+1) = pipe.startNode;
                     obj.connectionNodes(2,end) = pipe.endNode;
-                    pipe = Pipe(obj.turb2hubPipeRadius, obj.turb2hubPipePressure, obj.turb2hubPipeGasV);
+                    pipe = Pipe(obj.turb2subPipeRadius, obj.turb2subPipePressure, obj.turb2subPipeEff, obj.turb2subInT, obj.turb2suboutT);
                     pipe.add_turbine(grid, obj.turbines(i));
                 end
             end
             % Save last cable also...
+            pipe.update_connections(grid);
             obj.pipes(end+1) = pipe;
         end
         
@@ -301,7 +310,31 @@ classdef Windfarm < handle
                     numPipes = max(size(obj.pipes));
 
                     for i = 1:numPipes
-                        obj.pipes(i).add_connection(grid, hubNode)
+                        % Connected turbines
+                        turbines = obj.pipes(i).connected.turbines;
+                        
+                        % Find closest turbine
+                        turbCoords = [turbines.xIntrin; turbines.yIntrin]; % 1st row x coord, 2nd row y coord
+                        
+                        % calculate distanxes to hubNode
+                        [hubX, hubY] = grid.node2intrin(hubNode);
+                        dists = zeros(1,numel(turbines));
+                        
+                        for turb = 1:numel(turbines)
+                            dists(turb) = norm([hubX; hubY] - turbCoords(:,turb));
+                        end
+                        
+                        [~, id] = min(dists);
+                        
+                        closestCoords = turbCoords(:,id);
+                        closestNode = grid.intrin2node(closestCoords(1), closestCoords(2));
+                        
+                        new_pipe = Pipe(obj.turb2subPipeRadius, obj.turb2subPipePressure, obj.turb2subPipeEff, obj.turb2subInT, obj.turb2suboutT);
+                        
+                        new_pipe.add_connection(grid, closestNode);
+                        new_pipe.add_connection(grid, hubNode);
+                        
+                        obj.pipes(end+1) = new_pipe;
                     end
                 else
                     % Connect the cables
@@ -315,6 +348,122 @@ classdef Windfarm < handle
                 % Make cables from the central subplatform to the hub
                 
                 
+            end
+        end
+        
+        function connect2backbone(obj, grid, threshold)
+            disp(['Threshold: ', num2str(threshold)]);
+            obj.outCables = Cable.empty;
+            obj.outPipes = Pipe.empty;
+            
+            % Find closest backbone pipe
+            if obj.centralSubPresent
+                hubCoords = [grid.X(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), grid.Y(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), 0];
+                [hub_lat, hub_lon] = grid.intrin2geo(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin);
+            else
+                hubXIntrin = obj.start_x + 0.5 * obj.dimensions(1);
+                hubYIntrin = obj.start_y + 0.5 * obj.dimensions(2);
+                
+                hubCoords = [grid.X(hubXIntrin, hubYIntrin), grid.Y(hubXIntrin, hubYIntrin), 0];
+                [hub_lat, hub_lon] = grid.intrin2geo(hubXIntrin, hubYIntrin);
+            end
+                
+            numPipes = numel(grid.shapes.pipelines);
+            
+            shortestDist = nan;
+            shortestVec = nan;
+            
+            % Find the shortest vector from the hub to the pipeline
+            % sections
+            fprintf(1,'\n Connecting to backbone:    ');
+            for pipe = 1:numPipes
+                % For each pipe in the backbone
+                pipeline = grid.shapes.pipelines(pipe);
+                numSections = numel(pipeline.Lat);
+                
+                for section = 1:numSections-1
+                    % For each section of the pipe
+                    if isnan(pipeline.Lat(section)) || isnan(pipeline.Lat(section+1))
+                        continue;
+                    end
+                    
+                    % Store the current and next coordinates
+                    cur_lat = pipeline.Lat(section);
+                    next_lat = pipeline.Lat(section+1);
+                    cur_lon = pipeline.Lon(section);
+                    next_lon = pipeline.Lon(section+1);
+                                                            
+                    % Check if section is sufficiently close for the
+                    % calculation (takes a longg time otherwise...)
+                    sphere_dist = (distance(hub_lat, hub_lon, cur_lat, cur_lon) / 360)*2*pi*6371;
+                    if  sphere_dist > threshold
+                        % Point on pipeline is too far away
+                        continue;
+                    end
+                    
+                    % Calculate the vector coords in km
+                    [x,y] = projfwd(grid.projection, cur_lat, cur_lon);
+                    cur = [x, y, 0];
+                    [x,y] = projfwd(grid.projection, next_lat, next_lon);
+                    next = [x, y, 0];
+                    
+                    
+                    % Calculate triangle vectors AB and AC (A,B = pipe
+                    % points. C = hub vector)
+                    AB = (next - cur)';
+                    BA = -AB;
+                    AC = (hubCoords - cur)';
+                    BC = (hubCoords - next)';
+                    
+                    % Calculate the orthogonal distance d between the hub and
+                    % the pipe section
+                    if dot(AB, AC) < 0
+                        % Point lies before A
+                        % Shortest vector is -AC
+                        % vec is from hub(C) to the pipeline
+                        vec = -AC;
+                        d = norm(AC);
+                    elseif dot(BA, BC) < 0
+                        % Point lies after B
+                        % Shortest vector is BC
+                        vec = -BC;
+                        d = norm(vec);
+                    else
+                        % Point lies between A and B
+                        d = norm(cross(AB, AC)) / norm(AB);
+                        AE_mag = sqrt(norm(AC)^2 - d^2);
+                        AE = AB ./ norm(AB) .* AE_mag;
+                        vec = AE - AC;
+                    end
+                    
+                    if d < shortestDist || isnan(shortestDist)
+                        % Shortest vector till now, store it
+                        shortestDist = d;
+                        shortestVec = vec;
+                    end
+                end
+                fprintf(1,'\b\b\b\b%3.0f%%',(pipe/numPipes*100));
+            end
+            
+            % Check if shortest vector is found otherwise try again with a
+            % higher threshold
+            if isnan(shortestDist)
+                obj.connect2backbone(grid, threshold + 10);
+                return;
+            end
+            
+            end_coords = hubCoords' + shortestVec;
+            
+            % Convert connection point back to intrinsic values
+            [lat, lon] = projinv(grid.projection, end_coords(1), end_coords(2));
+            [xIntrin, yIntrin] = grid.geo2intrin(lat, lon);
+            connectionNode = grid.intrin2node(xIntrin, yIntrin);
+            
+            obj.connect2hub(grid, connectionNode);
+                
+            % Add a platform at the connection point with the backbone
+            if obj.bbConnectionPlatformPresent
+                obj.bbPlatform = Platform(grid, xIntrin,yIntrin);
             end
         end
         
@@ -369,6 +518,10 @@ classdef Windfarm < handle
             % Plot central subplatform
             if obj.centralSubPresent
                 plot(grid.X(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), grid.Y(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), "sb", 'MarkerSize', 10, 'LineWidth', 7);
+            end
+            
+            if numel(obj.bbPlatform) > 0
+                plot(grid.X(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), grid.Y(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), "sb", 'MarkerSize', 10, 'LineWidth', 7);
             end
             
             % Plot bounding box
