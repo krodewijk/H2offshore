@@ -6,6 +6,7 @@ classdef Windfarm < handle
         dimensions; % Size of farm in intrinsic coordinates
         H2Interconnect; % true --> pipes interconnect, false --> cables interconnect
         centralSubPresent;
+        scenario;
         
         % All coordinates of farm
         xIntrin;
@@ -31,12 +32,20 @@ classdef Windfarm < handle
         outputPower = 0; % power output from substation to central hub (year average)
         maxPower; % max allowed connected power
         
+        transportLosses;
+        
         % Turbine cable ratings
         turb2subCableVRating;
         turb2subCableIRating;
         turb2subCableFreq;
         turb2subCableA;
         turb2subCableCap;
+        
+        sub2mainCableVRating;
+        sub2mainCableIRating;
+        sub2mainCableFreq;
+        sub2mainCableA;
+        sub2mainCableCap;
         
         % Turbine pipe ratings
         turb2subPipePressure = 30; % bar
@@ -45,6 +54,13 @@ classdef Windfarm < handle
         turb2subPipeEff;
         turb2subInT;
         turb2suboutT;
+        
+        sub2mainPipePressure; % bar
+        sub2mainPipeRadius; % m
+        sub2mainPipeGasFlow; % m3/day
+        sub2mainPipeEff;
+        sub2mainInT;
+        sub2mainoutT;
     end
     
     methods
@@ -63,12 +79,27 @@ classdef Windfarm < handle
             obj.turb2subCableA = property.turb2subCableA; % mm2
             obj.turb2subCableCap = property.turb2subCableCap; % uF / km
             
+            obj.sub2mainCableVRating = property.sub2hubCableVRating; % kV 
+            obj.sub2mainCableIRating = property.sub2hubCableIRating; % A
+            obj.sub2mainCableFreq = property.sub2hubCableFreq; % Hz
+            obj.sub2mainCableA = property.sub2hubCableA; % mm2
+            obj.sub2mainCableCap = property.sub2hubCableCap; % uF / km
+            
             obj.turb2subPipePressure = property.turb2subPipePressure; % bar 
             obj.turb2subPipeRadius = property.turb2subPipeRadius; % m 
             obj.turb2subPipeGasFlow = property.turb2subPipeGasFlow; % m3/day
             obj.turb2subPipeEff = property.turb2subPipeEff; % 
             obj.turb2subInT = property.turb2subInT; % degC
             obj.turb2suboutT = property.turb2suboutT; % degC
+            
+            obj.sub2mainPipePressure = property.sub2mainPipePressure; % bar 
+            obj.sub2mainPipeRadius = property.sub2mainPipeRadius; % m 
+            obj.sub2mainPipeGasFlow = property.sub2mainPipeGasFlow; % m3/day
+            obj.sub2mainPipeEff = property.sub2mainPipeEff; % 
+            obj.sub2mainInT = property.sub2mainInT; % degC
+            obj.sub2mainoutT = property.sub2mainoutT; % degC
+            
+            obj.scenario = property.scenario;
             
             obj.maxPower = property.farmPower * 1e9;
             
@@ -98,6 +129,7 @@ classdef Windfarm < handle
             end
             
             obj.calculatePower();
+            
         end
         
         function placePlatforfm(obj, grid)
@@ -108,7 +140,11 @@ classdef Windfarm < handle
             % Place platform in middle if possible
             if(grid.mask(xCentre, yCentre))
                 % Is possible
-                plat = Platform(grid, xCentre, yCentre);
+                if obj.H2Interconnect
+                    plat = Platform(grid, xCentre, yCentre, "H2toH2", "sub");
+                else
+                    plat = Platform(grid, xCentre, yCentre, "EtoH2", "sub");
+                end
                 obj.subPlatform = plat;
             else
                 % Need to find other place...
@@ -137,7 +173,11 @@ classdef Windfarm < handle
                             % Place platform in middle if possible
                             if(grid.mask(curCoords(1), curCoords(2)))
                                 % Is possible
-                                plat = Platform(grid, curCoords(1), curCoords(2));
+                                if obj.H2Interconnect
+                                    plat = Platform(grid, curCoords(1), curCoords(2), "H2toH2", "sub");
+                                else
+                                    plat = Platform(grid, curCoords(1), curCoords(2), "EtoE", "sub");
+                                end
                                 obj.subPlatform = plat;
                                 found = true;
                                 break;
@@ -171,15 +211,18 @@ classdef Windfarm < handle
             [obj.xIntrin, obj.yIntrin] = meshgrid(xArr, yArr);
             
             turb_ind = 1;
+            usedPower = 0;
             % Check if coordinates intersect with grid mask and populate
             % with turbines
             for row = obj.start_x:xArr(end)
                 % if row is odd increase y
                 if (mod(row, 2) == 1)
                     for col = obj.start_y:yArr(end)
-                        if(grid.mask(row,col) && (obj.inputPower < obj.maxPower || obj.maxPower <= 0))
+                        if(grid.mask(row,col) && (usedPower < obj.maxPower || obj.maxPower <= 0))
                             % Possible turbine location
                             obj.turbines(turb_ind) = Turbine(grid, row, col);
+                            % Add used power
+                            usedPower = usedPower + obj.turbines(turb_ind).rating;
                             % Flip mask pixel
                             grid.mask(row,col) = false;
                             turb_ind = turb_ind + 1;
@@ -188,8 +231,10 @@ classdef Windfarm < handle
                 else
                     % Row is even
                     for col = flip(obj.start_y:yArr(end))
-                        if(grid.mask(row,col) && (obj.inputPower < obj.maxPower || obj.maxPower <= 0))
+                        if(grid.mask(row,col) && (usedPower < obj.maxPower || obj.maxPower <= 0))
                             obj.turbines(turb_ind) = Turbine(grid, row, col);
+                            % Add used power
+                            usedPower = usedPower + obj.turbines(turb_ind).rating;
                             % Flip mask pixel
                             grid.mask(row,col) = false;
                             turb_ind = turb_ind + 1;
@@ -331,28 +376,77 @@ classdef Windfarm < handle
                         
                         new_pipe = Pipe(obj.turb2subPipeRadius, obj.turb2subPipePressure, obj.turb2subPipeEff, obj.turb2subInT, obj.turb2suboutT);
                         
+                        new_pipe.connected.turbines = turbines;
+                        new_pipe.power_capacity = obj.pipes(i).power_capacity;
                         new_pipe.add_connection(grid, closestNode);
                         new_pipe.add_connection(grid, hubNode);
                         
-                        obj.pipes(end+1) = new_pipe;
+                        obj.outPipes(end+1) = new_pipe;
                     end
                 else
                     % Connect the cables
                     numCables = max(size(obj.cables));
 
                     for i = 1:numCables
-                        obj.cables(i).add_connection(grid, hubNode)
+                        % Connected turbines
+                        turbines = obj.cables(i).connected.turbines;
+                        
+                        % Find closest turbine
+                        turbCoords = [turbines.xIntrin; turbines.yIntrin]; % 1st row x coord, 2nd row y coord
+                        
+                        % calculate distanxes to hubNode
+                        [hubX, hubY] = grid.node2intrin(hubNode);
+                        dists = zeros(1,numel(turbines));
+                        
+                        for turb = 1:numel(turbines)
+                            dists(turb) = norm([hubX; hubY] - turbCoords(:,turb));
+                        end
+                        
+                        [~, id] = min(dists);
+                        
+                        closestCoords = turbCoords(:,id);
+                        closestNode = grid.intrin2node(closestCoords(1), closestCoords(2));
+                        
+                        new_cable = Cable(obj.turb2subCableVRating, obj.turb2subCableIRating, obj.turb2subCableFreq, obj.turb2subCableA, obj.turb2subCableCap);
+                            
+                        new_cable.connected.turbines = turbines;
+                        new_cable.power_capacity = obj.cables(i).power_capacity;
+                        new_cable.add_connection(grid, closestNode);
+                        new_cable.add_connection(grid, hubNode);
+                        
+                        obj.outCables(end+1) = new_cable;
                     end
                 end
             else
-                % Make cables from the central subplatform to the hub
-                
-                
+                % Make cables/pipes from the central subplatform to the hub
+                if obj.subPlatform.kind == "EtoH2" || obj.subPlatform.kind == "H2toH2"
+                    new_pipe = Pipe(obj.sub2mainPipeRadius, obj.sub2mainPipePressure, obj.sub2mainPipeEff, obj.sub2mainInT, obj.sub2mainoutT);
+                    % Calculate num of pipes needed to transport all energy
+                    numPipes = ceil(obj.inputPower / new_pipe.power_rating);
+                    for i = 1:numPipes
+                        new_pipe = Pipe(obj.sub2mainPipeRadius, obj.sub2mainPipePressure, obj.sub2mainPipeEff, obj.sub2mainInT, obj.sub2mainoutT);
+                        new_pipe.add_connection(grid, obj.subPlatform.node);
+                        new_pipe.add_connection(grid, hubNode);
+
+                        obj.outPipes(end+1) = new_pipe;
+                    end
+                else
+                    new_cable = Cable(obj.sub2mainCableVRating, obj.sub2mainCableIRating, obj.sub2mainCableFreq, obj.sub2mainCableA, obj.sub2mainCableCap);
+                    % Calculate num of pipes needed to transport all energy
+                    numCables = ceil(obj.inputPower / new_cable.power_rating);
+                    for i = 1:numCables
+                        new_cable = Cable(obj.sub2mainCableVRating, obj.sub2mainCableIRating, obj.sub2mainCableFreq, obj.sub2mainCableA, obj.sub2mainCableCap);
+                        new_cable.add_connection(grid, obj.subPlatform.node);
+                        new_cable.add_connection(grid, hubNode);
+
+                        obj.outCables(end+1) = new_cable;
+                    end
+                end
             end
         end
         
         function connect2backbone(obj, grid, threshold)
-            disp(['Threshold: ', num2str(threshold)]);
+            %threshold = 50; % km
             obj.outCables = Cable.empty;
             obj.outPipes = Pipe.empty;
             
@@ -375,7 +469,7 @@ classdef Windfarm < handle
             
             % Find the shortest vector from the hub to the pipeline
             % sections
-            fprintf(1,'\n Connecting to backbone:    ');
+            %fprintf(1,'\n Connecting to backbone:    ');
             for pipe = 1:numPipes
                 % For each pipe in the backbone
                 pipeline = grid.shapes.pipelines(pipe);
@@ -442,13 +536,13 @@ classdef Windfarm < handle
                         shortestVec = vec;
                     end
                 end
-                fprintf(1,'\b\b\b\b%3.0f%%',(pipe/numPipes*100));
+                %fprintf(1,'\b\b\b\b%3.0f%%',(pipe/numPipes*100));
             end
             
             % Check if shortest vector is found otherwise try again with a
             % higher threshold
             if isnan(shortestDist)
-                obj.connect2backbone(grid, threshold + 10);
+                obj.connect2backbone(grid, threshold+50);
                 return;
             end
             
@@ -463,7 +557,80 @@ classdef Windfarm < handle
                 
             % Add a platform at the connection point with the backbone
             if obj.bbConnectionPlatformPresent
-                obj.bbPlatform = Platform(grid, xIntrin,yIntrin);
+                if obj.H2Interconnect
+                    obj.bbPlatform = Platform(grid, xIntrin,yIntrin, "H2toH2", "bb");
+                else
+                    if obj.scenario == "fullElectric"
+                        obj.bbPlatform = Platform(grid, xIntrin,yIntrin, "EtoE", "bb");
+                    else
+                        obj.bbPlatform = Platform(grid, xIntrin,yIntrin, "EtoH2", "bb");
+                    end
+                end
+            end
+        end
+        
+        function calculate_power(obj)
+            obj.inputPower = 0;
+            % sum inputpowers of all cables/pipes. This is expected
+            % averaged power coming from the turbines
+            if obj.H2Interconnect
+                lines = obj.pipes;
+                outLines = obj.outPipes;
+            else
+                lines = obj.cables;
+                outLines = obj.outCables;
+            end
+            
+            numLines = numel(lines);
+            
+            for i = 1:numLines
+                lines(i).calculate_power();
+                obj.inputPower = obj.inputPower + lines(i).inputPower;
+            end
+            
+            % Take care of any potential subplatform
+            if obj.centralSubPresent
+                % Take into account the efficieny of the subplatform
+                subOutPower = obj.subPlatform.calculate_power(obj.inputPower);
+                
+                % Then the transportation losses via lines
+                numOutlines = numel(outLines);
+                OutLinePower = 0;
+                
+                for i = 1:numOutlines
+                    if (subOutPower / numOutlines) > outLines(i).power_rating
+                        error("Power exceeds cable rating")
+                    end
+                    outLines(i).set_power(subOutPower / numOutlines);
+                    OutLinePower = OutLinePower + outLines(i).outputPower;
+                end
+            else
+                numOutlines = numel(outLines);
+                OutLinePower = 0;
+                
+                for i = 1:numOutlines
+                    outLines(i).calculate_power()
+                    OutLinePower = OutLinePower + outLines(i).outputPower;
+                end
+            end
+            
+            obj.transportLosses = obj.inputPower - OutLinePower;
+
+            % Then the bbplatform losses
+            if obj.bbConnectionPlatformPresent
+                bbInPower = obj.bbPlatform.calculate_power(OutLinePower);
+                obj.outputPower = bbInPower;
+            else
+                obj.outputPower = OutLinePower;
+            end
+            
+            % Update properties
+            if obj.H2Interconnect
+                obj.pipes = lines;
+                obj.outPipes = outLines;
+            else
+                obj.cables = lines;
+                obj.outCables = outLines;
             end
         end
         
@@ -499,6 +666,19 @@ classdef Windfarm < handle
                     hold on;
                 end
             end
+            for i = 1:numel(obj.outCables)
+                if any(obj.outCables(i).xIntrin)
+                    lenCable = max(size(obj.outCables(i).xIntrin));
+                    xCoord = [];
+                    yCoord = [];
+                    for k = 1:lenCable
+                        xCoord(end+1) = grid.X(obj.outCables(i).xIntrin(k), obj.outCables(i).yIntrin(k));
+                        yCoord(end+1) = grid.Y(obj.outCables(i).xIntrin(k), obj.outCables(i).yIntrin(k));
+                    end
+                    plot(xCoord, yCoord,'y', 'LineWidth',3);
+                    hold on;
+                end
+            end
             
             % Plot pipes
             for i = 1:numPipes
@@ -509,6 +689,21 @@ classdef Windfarm < handle
                     for k = 1:lenPipe
                         xCoord(end+1) = grid.X(obj.pipes(i).xIntrin(k), obj.pipes(i).yIntrin(k));
                         yCoord(end+1) = grid.Y(obj.pipes(i).xIntrin(k), obj.pipes(i).yIntrin(k));
+                    end
+                    plot(xCoord, yCoord,'c', 'LineWidth',3);
+                    hold on;
+                end
+            end
+            
+            % Plot output pipes
+            for i = 1:numel(obj.outPipes)
+                if any(obj.outPipes(i).xIntrin)
+                    lenPipe = max(size(obj.outPipes(i).xIntrin));
+                    xCoord = [];
+                    yCoord = [];
+                    for k = 1:lenPipe
+                        xCoord(end+1) = grid.X(obj.outPipes(i).xIntrin(k), obj.outPipes(i).yIntrin(k));
+                        yCoord(end+1) = grid.Y(obj.outPipes(i).xIntrin(k), obj.outPipes(i).yIntrin(k));
                     end
                     plot(xCoord, yCoord,'c', 'LineWidth',3);
                     hold on;

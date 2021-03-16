@@ -88,8 +88,8 @@ classdef Transport < handle
                 obj.nodes = [newNode];
             end
             obj.update_intrinCoords(grid);
-            obj.calculate_power();
             obj.calc_length(grid);
+            obj.calculate_power();
         end
         
         function len = calc_length(obj, grid)
@@ -97,11 +97,31 @@ classdef Transport < handle
             len = 0;
             
             for i = 1:numNodes
-                dist = distances(grid.graph, obj.nodes(i), obj.nodes(i+1));
+                cur_node = obj.nodes(i);
+                next_node = obj.nodes(i+1);
+                
+                [x,y] = grid.node2intrin(cur_node);
+                cur_projX = grid.X(x, y);
+                cur_projY = grid.Y(x,y);
+                cur_proj = [cur_projX, cur_projY];
+                
+                [x,y] = grid.node2intrin(next_node);
+                next_projX = grid.X(x, y);
+                next_projY = grid.Y(x,y);
+                next_proj = [next_projX, next_projY];
+                
+                %dist = distances(grid.graph, obj.nodes(i), obj.nodes(i+1));
+                dist = norm(next_proj - cur_proj);
                 len = len + dist;
             end
-            
+            len = len / 1000; % convert to km
             obj.length = len;
+        end
+        
+        function set_power(obj, inputPower)
+            obj.inputPower = inputPower;
+            obj.power_capacity = obj.power_rating - obj.inputPower;
+            obj.calculate_power();
         end
         
         function update_connections(obj, grid)
@@ -174,6 +194,8 @@ classdef Transport < handle
             obj.nodes = unique(obj.nodes, 'stable');
             
             obj.update_intrinCoords(grid);
+            obj.calc_length(grid);
+            obj.calculate_power();
             
             obj.startNode = obj.nodes(1);
             obj.endNode = obj.nodes(end);

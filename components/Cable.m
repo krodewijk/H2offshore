@@ -8,9 +8,11 @@ classdef Cable < Transport
         frequency;
         crossA; % mm2, cross section of cable
         capacitance; % uF / km, capacitance of cable
+        dielectricLossFactor;
         
         resistivity; % Ohm * mm2 / m
         Rkm;
+        actualI;
         
         power_factor = 0.95;
     end
@@ -25,6 +27,7 @@ classdef Cable < Transport
             obj.crossA = A;
             obj.capacitance = cap;
             obj.resistivity = property.turb2subCableRho;
+            obj.dielectricLossFactor = property.dielectricLossFactor;
             
             % Calculate DC resistance / km
             obj.Rkm = obj.resistivity / obj.crossA * 1000;
@@ -42,29 +45,39 @@ classdef Cable < Transport
         end
         
         function calculate_power(obj)
-            % Calculate input power (from turbines)
             numTurbs = numel(obj.connected.turbines);
-            powerSum = 0;
-            for i = 1:numTurbs
-                powerSum = powerSum + obj.connected.turbines(i).power;
+            if numTurbs > 0
+                % Calculate input power (from turbines)
+                powerSum = 0;
+                for i = 1:numTurbs
+                    powerSum = powerSum + obj.connected.turbines(i).power;
+                end
+                obj.inputPower = powerSum;
             end
-            obj.inputPower = powerSum;
            
             % Calculate losses
-            act_I = powerSum / obj.voltage_rating;
+            act_I = obj.inputPower / obj.voltage_rating;
+            if obj.frequency > 0
+                act_I = act_I / sqrt(3);
+            end
+            obj.actualI = act_I;
             
             % ohmic
-            R = obj.resistivity * obj.length / 1000;
+            R = obj.Rkm * obj.length;
             Pohm = act_I ^2 * R;
             
             % dielectric
-            C = obj.capacitance * obj.length / 1000; % uF
-            Pdi = 2 * pi * obj.frequency * C * 10^-6 * obj.voltage_rating^2;
+            C = obj.capacitance * obj.length; % uF
+            Pdi = 2 * pi * obj.frequency * C * 10^-6 * obj.voltage_rating^2 * obj.dielectricLossFactor;
             
             % total lost power
             Ptot = Pohm + Pdi;
             
             obj.outputPower = obj.inputPower - Ptot;
+            
+            if obj.outputPower < 0
+                warning("Too much losses in cable!")
+            end
         end
         
     end

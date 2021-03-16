@@ -35,7 +35,7 @@ property.traffic_threshold = 500;  % Minimum routes/square km per year
 %----------------------
 % Location of Geotif data
 property.windHeight = 10; % m (height of measured windspeed)
-property.maps.windSpeed = "GIS_data/windspeed/wind2011_speed.tif";
+%property.maps.windSpeed = "GIS_data/windspeed/wind2011_speed.tif";
 property.maps.windVariance = "GIS_data/windspeed/wind2011_var.tif";
 property.maps.routeDensity = "GIS_data/traffic.tif";
 property.maps.bathymetry = "GIS_data/comb_bath.tif";
@@ -45,7 +45,7 @@ property.shapes.natura2000 = "GIS_data/natura2000.shp";
 property.shapes.CDDA = "GIS_data/CDDA.shp";
 property.shapes.fishing = "GIS_data/Average_MW_Fishing"; % average mW fishing hours
 property.shapes.windfarms = "GIS_data/windfarm.shp"; % already existing + under construction windfarms
-property.shapes.pipelines = "GIS_data/backbone/Complete_Backbone.shp"; % already existing pipelines (used+unused)
+property.shapes.pipelines = "GIS_data/backbone_simplified/Complete_Backbone_Simplify.shp"; % already existing pipelines (used+unused)
 property.shapes.onshoreConnections = "GIS_data/onshoreConnections/onshore_connection_points.shp"; % possible onshore connection points
 
 %----------------------
@@ -113,11 +113,14 @@ property.platform.transOutVolt = 220; % kV
 
 % Compressor parameters
 property.platform.comprEff = 80; % percent
+property.platform.comprAdiaEff = 90; % percent
 property.platform.comprOutPress = 30; %bar
 
 %----------------------
 %     CABLES        
 %----------------------
+
+property.dielectricLossFactor = 4e-2;
 
 % Turbine --> subStation cable rating
 property.turb2subCableVRating = 66; % kV (voltage rating)
@@ -127,7 +130,7 @@ property.turb2subCableA = 800; % mm2 (cross-section)
 property.turb2subCableCap = 0.35; % uF / km (capacitance)
 property.turb2subCableRho = 0.0171; % Ohm * mm2/m (copper resistivity)
 
-% substation --> hub cable rating
+% substation --> bb cable rating
 property.sub2hubCableVRating = 275; % kV (voltage rating)
 property.sub2hubCableIRating = 825; % A (current rating)
 property.sub2hubCableFreq = 50; % if cable is AC or DC (true = AC, false = DC)
@@ -135,7 +138,7 @@ property.sub2hubCableA = 1000; % mm2 (cross-section)
 property.sub2hubCableCap = 0.18; % uF / km (capacitance)
 property.sub2hubCableRho = 0.0171; % Ohm * mm2/m (copper resistivity)
 
-% Hub --> shore cable rating
+% Backbone cable rating
 property.hub2shoreCableVRating = 525; % kV (voltage rating)
 property.hub2shoreCableIRating = 4952; % A (current rating)
 property.hub2shoreCableFreq = 0; % if cable is AC or DC (true = AC, false = DC)
@@ -155,6 +158,7 @@ property.H2gravity = 0.0696;
 property.baseTemp = 288; % K
 property.basePress = 1.01325; % bar
 property.maxV = 20; % m/s (max velocity)
+property.specHeatRatio = 1.41; % Cp / Cv
 
 % Turbine --> hub pipe rating
 property.turb2subPipePressure = 30; % bar (pressure rating)
@@ -173,10 +177,10 @@ property.sub2mainInT = 50; % degC (input temp)
 property.sub2mainoutT = 10; % degC (output temp)
 
 % main --> shore pipe rating
-property.sub2mainPipePressure = 80; % bar (pressure rating)
-property.sub2mainPipeRadius = 0.5; % m (pipe radius)
-property.sub2mainPipeGasFlow = 1357168; % m3/day (gas volumetric flow)
-property.sub2mainPipeEff = 0.95; % pipeline efficiency
-property.sub2mainInT = 50; % degC (input temp)
-property.sub2mainoutT = 10; % degC (output temp)
+property.main2bbPipePressure = 80; % bar (pressure rating)
+property.main2bbPipeRadius = 0.5; % m (pipe radius)
+property.main2bbPipeGasFlow = 1357168; % m3/day (gas volumetric flow)
+property.main2bbPipeEff = 0.95; % pipeline efficiency
+property.main2bbInT = 50; % degC (input temp)
+property.main2bboutT = 10; % degC (output temp)
 
