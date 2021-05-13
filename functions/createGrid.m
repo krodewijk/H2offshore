@@ -24,6 +24,7 @@ g.add_fishing_zones(property.shapes.fishing, property.fishing_threshold);
 g.add_windfarm_zones(property.shapes.windfarms);
 g.add_pipelines(property.shapes.pipelines);
 g.add_landareas();
+g.createBackboneGraph();
 g.add_connectionPoints(property.shapes.onshoreConnections);
 
 g.createGraph();

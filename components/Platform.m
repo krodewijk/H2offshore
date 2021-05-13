@@ -35,6 +35,8 @@ classdef Platform < handle
         %EtoE paramters
         inVoltage;
         outVoltage;
+        
+        CAPEX; % M-EUR
     end
     
     methods
@@ -127,6 +129,26 @@ classdef Platform < handle
         function outPower = EtoH2PowerTransfer(obj)
             % Electrolyser + compressor needed
             outPower = obj.electrolyserEff * obj.inputPower;
+        end
+        
+        function cost = calculateCost(obj)
+            global costsParams;
+            
+            platformCost = costsParams.platformEquipm; % Million
+            installCost = costsParams.platformInstallation; % Million
+            
+            % Component cost
+            % Compressor/transformer??
+            % Electrolyser
+            if obj.kind == "EtoH2"
+                compCost = costsParams.H2ProductionCAPEX * obj.inputPower / 1e9; % M-EUR
+            else
+                compCost = 0;
+            end
+            
+            cost = platformCost + installCost + compCost;
+            
+            obj.CAPEX = cost;
         end
     end
 end

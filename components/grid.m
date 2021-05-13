@@ -19,6 +19,9 @@ classdef grid < handle
         
         % graph system
         graph;
+        bbGraph;
+        bbNodes;
+        bbLines;
         
         cellReference;
         data = struct;
@@ -315,6 +318,18 @@ classdef grid < handle
                 S(i).yIntrin = yIntrin;
                 node = obj.intrin2node(xIntrin, yIntrin);
                 S(i).node = node;
+                % Find closest bbNode
+                minDist = nan;
+                minNode = nan;
+                
+                for k = 1:numel(obj.bbNodes)
+                    curDist = distance(S(i).Lat, S(i).Lon, obj.bbNodes(k).coords(1), obj.bbNodes(k).coords(2));
+                    if curDist < minDist || isnan(minDist)
+                        minDist = curDist;
+                        minNode = k;
+                    end
+                end
+                S(i).bbNode = minNode;
             end
             
             obj.shapes.connectionPoints = S;
@@ -352,6 +367,109 @@ classdef grid < handle
             obj.graph = graph(A);
         end
         
+        function createBackboneGraph(obj)
+            % Check where the nodes of the backbone need to be (at the ends
+            % of each line), and create a graph from it
+            
+            % STEP 1 - MAKE NODES
+            % List all endpoints of lines
+            points = []; % line endpoints
+            numLines = numel(obj.shapes.pipelines);
+            
+            for i = 1:numLines
+                startPoint = [obj.shapes.pipelines(i).Lat(1), obj.shapes.pipelines(i).Lon(1)];
+                
+                endPoint = [obj.shapes.pipelines(i).Lat(end), obj.shapes.pipelines(i).Lon(end)];
+                
+                % Add to points array
+                points(end+1).coords = startPoint;
+                points(end).lines = [i]; % add index of line
+                points(end).connectedCoords = endPoint;
+                
+                points(end+1).coords= endPoint;
+                points(end).lines = [i]; % add index of line
+                points(end).connectedCoords = startPoint;
+            end
+            
+            % Check the distance between each point, if the distance is < 3
+            % km --> merge the point
+            
+            numPoints = numel(points);
+            for i = 1:numPoints
+                if i > numel(points)
+                    break;
+                end
+                cur_point = points(i).coords;
+                
+                tbr = [];
+                
+                for k = (i+1):numPoints
+                    if k > numel(points)
+                        break;
+                    end
+                    next_point = points(k).coords;
+                    
+                    sphere_dist = (distance(cur_point(1), cur_point(2), next_point(1), next_point(2)) / 360)*2*pi*6371;
+                    if sphere_dist < 3
+                        % Points are closer than 3 km
+                        % Merge points --> remove next_point from points
+                        % list
+                        % Add line of next_point to the current point
+                        points(i).lines = [points(i).lines, points(k).lines];
+
+                        points(i).connectedCoords = [points(i).connectedCoords; points(k).connectedCoords];
+                        tbr(end+1) = k;
+                    end
+                end
+                points(tbr) = [];
+            end
+            
+            obj.bbNodes = points;
+            
+            % Now create the graph using the nodes created above
+            numNodes = numel(points);
+            A = zeros(numNodes);
+            bbLines = zeros(numNodes);
+            
+            for i = 1:numNodes
+                % For each line in node, check if the line is also present
+                % in other nodes.
+                connected_lines = obj.bbNodes(i).lines;
+                
+                for line = 1:numel(connected_lines)
+                    % Find the other node in which the same line is present
+                    for node = 1:numel(obj.bbNodes)
+                        % Check if current line is present in current
+                        % node.lines array
+                        currentNodeLines = obj.bbNodes(node).lines;
+                        if any(currentNodeLines(currentNodeLines == connected_lines(line))) && (i ~= node)
+                            connectedNode = node;
+                            bbLines(i, connectedNode) = connected_lines(line);
+                            A(i, connectedNode) = obj.shapes.pipelines(connected_lines(line)).Length_km;
+                            break;
+                        end
+                    end
+                end
+            end
+            obj.bbGraph = graph(A);
+            obj.bbLines = bbLines;
+        end
+        
+        function [length, nodes, lines] = navigateBB(obj, startNode, endNode)
+            % Give shortest route length, passed nodes and lines
+            
+            [nodes, length] = shortestpath(obj.bbGraph, startNode, endNode);
+            
+            numNodes = numel(nodes);
+            lines = [];
+            
+            for i = 1:numNodes-1
+                lines(end+1) = obj.bbLines(nodes(i), nodes(i+1));
+            end
+            
+            %obj.plot_pipes_nav(lines);
+        end
+        
         function add_pipelines(obj, fileName)
             fprintf(1,' Adding pipelines\n');
             S = shaperead(fileName, 'UseGeoCoords', true);
@@ -366,6 +484,7 @@ classdef grid < handle
                 
                 % Create nodes field
                 S(i).nodes = [];
+                toBeRemoved = [];
                 
                 for k = 1:innerDim % for each coordinate in line
                     
@@ -374,6 +493,11 @@ classdef grid < handle
                     cur_lon = S(i).Lon(k);
                     
                     if isnan(cur_lat) || isnan(cur_lon)
+                        % Remove from list if its the last element
+                        if k == innerDim
+                            S(i).Lat(end) = [];
+                            S(i).Lon(end) = [];
+                        end
                         continue;
                     end
                         
@@ -390,6 +514,7 @@ classdef grid < handle
 
                 %disp(k)
                 end
+                
                 fprintf(1,'\b\b\b\b%3.0f%%',(i/dim*100));
                 %disp(i);
             end
@@ -482,7 +607,69 @@ classdef grid < handle
             plot(xProjCoast, yProjCoast);
             plot(xProjCity, yProjCity, 'o', 'MarkerSize', 10, 'LineWidth', 5);
             
+            % Plot bbNodes
+            for i = 1:numel(obj.bbNodes)      
+                bbNodes_lat = obj.bbNodes(i).coords(1);
+                bbNodes_lon = obj.bbNodes(i).coords(2);
+                [bbNodes_x, bbNodes_y] = projfwd(obj.projection, bbNodes_lat, bbNodes_lon);
+                plot(bbNodes_x, bbNodes_y, 'o', 'MarkerSize', 10, 'LineWidth', 5, 'Color', '#fc0303');
+                text(bbNodes_x, bbNodes_y, ['   ', num2str(i)], 'FontSize',12);
+                hold on;
+            end
+                
+            xlim([-2e5, 7.5e5]);
+            ylim([5.4e6, 7.4e6]);
+        end
+        
+        function plot_pipes_nav(obj, lines)
+            hold on;
+            coastLines = load("coastlines");
+            cities = shaperead('worldcities', 'UseGeoCoords', true);
+            citiesLat = zeros(max(size(cities),1));
+            citiesLon = zeros(max(size(cities)),1);
             
+            % Convert shape format to useable array
+            for i = 1:max(size(cities))
+                citiesLat(i) = cities(i).Lat;
+                citiesLon(i) = cities(i).Lon;
+            end
+            
+            % Plot backline
+            numPipes = numel(obj.shapes.pipelines);
+            for i = 1:numPipes
+                lenCable = numel(obj.shapes.pipelines(i).Lat);
+                xCoord = [];
+                yCoord = [];
+                
+                [xCoord, yCoord] = projfwd(obj.projection, obj.shapes.pipelines(i).Lat, obj.shapes.pipelines(i).Lon);
+
+%                 for k = 1:lenCable
+%                     if ~isnan(obj.shapes.pipelines(i).xIntrin(k)) && ~isnan(obj.shapes.pipelines(i).yIntrin(k))
+%                         xCoord(end+1) = obj.X(obj.shapes.pipelines(i).xIntrin(k), obj.shapes.pipelines(i).yIntrin(k));
+%                         yCoord(end+1) = obj.Y(obj.shapes.pipelines(i).xIntrin(k), obj.shapes.pipelines(i).yIntrin(k));
+%                 
+%                     end
+%                 end
+                if any(lines == i)
+                    plot(xCoord, yCoord,'b', 'LineWidth', 4, 'Color', '#ff0000');
+                else
+                    plot(xCoord, yCoord,'b', 'LineWidth', 4, 'Color', '#349eeb');
+                end
+                hold on;
+            end
+
+            % Plot surroundings (coastlines + cities)
+            [xProjCoast, yProjCoast] = projfwd(obj.projection, coastLines.coastlat, coastLines.coastlon);
+            [xProjCity, yProjCity] = projfwd(obj.projection, citiesLat, citiesLon);
+            plot(xProjCoast, yProjCoast);
+            plot(xProjCity, yProjCity, 'o', 'MarkerSize', 10, 'LineWidth', 5);
+            
+            % Plot bbNodes
+%             bbNodes_lat = obj.bbNodes(:).coords(1);
+%             bbNodes_lon = obj.bbNodes(:).coords(2);
+%             [bbNodes_x, bbNodes_y] = projfwd(obj.projection, bbNodes_lat, bbNodes_lon);
+%             plot(bbNodes_x, bbNodes_y, 'o', 'MarkerSize', 10, 'LineWidth', 5, 'Color', '#fc0303');
+%             
             xlim([-2e5, 7.5e5]);
             ylim([5.4e6, 7.4e6]);
         end

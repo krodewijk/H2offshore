@@ -5,6 +5,9 @@ classdef Transport < handle
         % Start and end coordinates in intrins coord
         startNode;
         endNode;
+        bb = false;
+        bbBasePerc;
+        bbBasePower;
         
         % Intrinsic coordinates where pipe will go
         xIntrin;
@@ -19,6 +22,7 @@ classdef Transport < handle
         
         connected = struct;
         power_capacity; % W capacity left in transport
+        CAPEX; % M-EUR
     end
 
     
@@ -95,7 +99,7 @@ classdef Transport < handle
         function len = calc_length(obj, grid)
             numNodes = numel(obj.nodes)-1;
             len = 0;
-            
+                % Calculate horizontal lengths
             for i = 1:numNodes
                 cur_node = obj.nodes(i);
                 next_node = obj.nodes(i+1);
@@ -114,6 +118,14 @@ classdef Transport < handle
                 dist = norm(next_proj - cur_proj);
                 len = len + dist;
             end
+            
+            % Also take into account the depths of the turbines
+            numTurbs = numel(obj.connected.turbines);
+            total_depth_length = 0;
+            for i = 1:numTurbs
+                total_depth_length = total_depth_length + abs(obj.connected.turbines(i).depth);
+            end
+            
             len = len / 1000; % convert to km
             obj.length = len;
         end

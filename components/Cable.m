@@ -12,7 +12,7 @@ classdef Cable < Transport
         
         resistivity; % Ohm * mm2 / m
         Rkm;
-        actualI;
+        act_I;
         
         power_factor = 0.95;
     end
@@ -28,6 +28,7 @@ classdef Cable < Transport
             obj.capacitance = cap;
             obj.resistivity = property.turb2subCableRho;
             obj.dielectricLossFactor = property.dielectricLossFactor;
+            obj.bbBasePerc = property.BBbaseload;
             
             % Calculate DC resistance / km
             obj.Rkm = obj.resistivity / obj.crossA * 1000;
@@ -40,11 +41,12 @@ classdef Cable < Transport
             end
                 
             obj.power_capacity = obj.power_rating;
+            obj.bbBasePower = obj.bbBasePerc * obj.power_rating;
             
             obj.connected.turbines = Turbine.empty;
         end
         
-        function calculate_power(obj)
+        function outP = calculate_power(obj)
             numTurbs = numel(obj.connected.turbines);
             if numTurbs > 0
                 % Calculate input power (from turbines)
@@ -54,13 +56,28 @@ classdef Cable < Transport
                 end
                 obj.inputPower = powerSum;
             end
-           
-            % Calculate losses
-            act_I = obj.inputPower / obj.voltage_rating;
+            
+            if obj.bb
+                % Add baseload power/current to the cable
+                Ploss = obj.cable_losses(obj.inputPower + obj.bbBasePower) - obj.cable_losses(obj.bbBasePower);
+            else
+                Ploss = obj.cable_losses(obj.inputPower);
+            end
+            
+            obj.outputPower = obj.inputPower - Ploss;
+
+            outP = obj.outputPower;
+            
+            if obj.outputPower < 0
+                warning("Too much losses in cable!")
+            end
+        end
+        
+        function loss = cable_losses(obj, inPower)
+            act_I = inPower / obj.voltage_rating;
             if obj.frequency > 0
                 act_I = act_I / sqrt(3);
             end
-            obj.actualI = act_I;
             
             % ohmic
             R = obj.Rkm * obj.length;
@@ -71,15 +88,20 @@ classdef Cable < Transport
             Pdi = 2 * pi * obj.frequency * C * 10^-6 * obj.voltage_rating^2 * obj.dielectricLossFactor;
             
             % total lost power
-            Ptot = Pohm + Pdi;
-            
-            obj.outputPower = obj.inputPower - Ptot;
-            
-            if obj.outputPower < 0
-                warning("Too much losses in cable!")
-            end
+            loss = Pohm + Pdi;
         end
         
+        function cost = calculateCost(obj)
+            global costsParams;
+            if obj.bb
+                cableCost = costsParams.hub2shoreCosts * obj.length;
+            else
+                cableCost = costsParams.turb2subCosts * obj.length;
+            end
+            installCost = costsParams.cableInstallation * obj.length;
+            cost = cableCost + installCost;
+            obj.CAPEX = cost;
+        end
     end
 end
 

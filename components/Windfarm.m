@@ -7,6 +7,7 @@ classdef Windfarm < handle
         H2Interconnect; % true --> pipes interconnect, false --> cables interconnect
         centralSubPresent;
         scenario;
+        onshoreConnection;
         
         % All coordinates of farm
         xIntrin;
@@ -21,6 +22,10 @@ classdef Windfarm < handle
         subPlatform;
         bbConnectionPlatformPresent;
         bbPlatform;
+        bbLength = 0;
+        bbLines;
+        bbNodes;
+        bbTransport;
         
         turbines = Turbine.empty; % array of included turbines
         cables = Cable.empty; % turbine cables
@@ -30,9 +35,14 @@ classdef Windfarm < handle
         ratedPower = 0; % sum of the rated powers of all connected turbines
         inputPower = 0; % sum of power of all incoming powers via cables/pipes from turbines (year average)
         outputPower = 0; % power output from substation to central hub (year average)
+        shorePower = 0;
         maxPower; % max allowed connected power
         
-        transportLosses;
+        transport2shoreLosses;
+        CAPEX;
+        CAPEXlist;
+        OPEX;
+        LCOE;
         
         % Turbine cable ratings
         turb2subCableVRating;
@@ -46,6 +56,13 @@ classdef Windfarm < handle
         sub2mainCableFreq;
         sub2mainCableA;
         sub2mainCableCap;
+        
+        
+        hub2shoreCableVRating;
+        hub2shoreCableIRating;
+        hub2shoreCableFreq;
+        hub2shoreCableA;
+        hub2shoreCableCap;
         
         % Turbine pipe ratings
         turb2subPipePressure = 30; % bar
@@ -61,6 +78,12 @@ classdef Windfarm < handle
         sub2mainPipeEff;
         sub2mainInT;
         sub2mainoutT;
+        
+        hub2shorePipePressure; % bar
+        hub2shorePipeRadius; % m
+        hub2shorePipeEff;
+        hub2shoreInT;
+        hub2shoreoutT;
     end
     
     methods
@@ -72,6 +95,7 @@ classdef Windfarm < handle
             obj.dimensions = property.farmDim;
             obj.centralSubPresent = central_sub;
             obj.bbConnectionPlatformPresent = property.bbConnectionPlatform;
+            obj.onshoreConnection = property.shoreConnectionPoint;
             
             obj.turb2subCableVRating = property.turb2subCableVRating; % kV 
             obj.turb2subCableIRating = property.turb2subCableIRating; % A
@@ -84,6 +108,12 @@ classdef Windfarm < handle
             obj.sub2mainCableFreq = property.sub2hubCableFreq; % Hz
             obj.sub2mainCableA = property.sub2hubCableA; % mm2
             obj.sub2mainCableCap = property.sub2hubCableCap; % uF / km
+            
+            obj.hub2shoreCableVRating = property.hub2shoreCableVRating;
+            obj.hub2shoreCableIRating = property.hub2shoreCableIRating;
+            obj.hub2shoreCableFreq = property.hub2shoreCableFreq;
+            obj.hub2shoreCableA = property.hub2shoreCableA;
+            obj.hub2shoreCableCap = property.hub2shoreCableCap;
             
             obj.turb2subPipePressure = property.turb2subPipePressure; % bar 
             obj.turb2subPipeRadius = property.turb2subPipeRadius; % m 
@@ -99,6 +129,10 @@ classdef Windfarm < handle
             obj.sub2mainInT = property.sub2mainInT; % degC
             obj.sub2mainoutT = property.sub2mainoutT; % degC
             
+            obj.hub2shorePipePressure = property.main2bbPipePressure; % bar
+            obj.hub2shorePipeRadius = property.main2bbPipeRadius; % m
+            obj.hub2shorePipeEff = property.main2bbPipeEff;
+
             obj.scenario = property.scenario;
             
             obj.maxPower = property.farmPower * 1e9;
@@ -534,6 +568,8 @@ classdef Windfarm < handle
                         % Shortest vector till now, store it
                         shortestDist = d;
                         shortestVec = vec;
+                        chosenPipe = pipe;
+                        chosenSection = section;
                     end
                 end
                 %fprintf(1,'\b\b\b\b%3.0f%%',(pipe/numPipes*100));
@@ -567,6 +603,51 @@ classdef Windfarm < handle
                     end
                 end
             end
+            
+            % calculate distance from placed bbPlatform to two bbNodes
+            pipe = chosenPipe;
+            closestbbNodes = [];
+            
+            % find the corresponding bbNodes to the chosenPipe
+            for i = 1:numel(grid.bbNodes)
+                if any(grid.bbNodes(i).lines == pipe)
+                    closestbbNodes(end+1) = i;
+                end
+            end
+            
+            % For each node, calculate the distance to shore
+            numNodes = numel(closestbbNodes);
+            min_length = nan;
+            endNode = grid.shapes.connectionPoints(obj.onshoreConnection).bbNode;
+            
+            for i = 1:numNodes
+                % Calculate distance from bblatfom 
+                [coordX, coordY] = projfwd(grid.projection, grid.bbNodes(closestbbNodes(i)).coords(1), grid.bbNodes(closestbbNodes(i)).coords(2));
+                dist = norm([coordX,coordY] - [end_coords(1), end_coords(2)]) / 1000;
+                
+                [lengthFromNode, nodesPassed, linesPassed] = grid.navigateBB(closestbbNodes(i), endNode);
+                total_length = dist + lengthFromNode;
+                    
+                if isnan(min_length) || total_length < min_length
+                    min_length = total_length;
+                    obj.bbLength = min_length;
+                    obj.bbLines = linesPassed;
+                end
+            end
+            
+            % Create a pipe/cable that's of the same length and properties of the
+            % backbone
+            if obj.scenario == "fullElectric"
+                % Create cable
+                transp = Cable(obj.hub2shoreCableVRating, obj.hub2shoreCableIRating, obj.hub2shoreCableFreq, obj.hub2shoreCableA, obj.hub2shoreCableCap);
+            else
+                % Create pipe
+                transp = Pipe(obj.hub2shorePipeRadius, obj.hub2shorePipePressure, obj.hub2shorePipeEff, 50, 15);
+            end
+            
+            transp.length = obj.bbLength;
+            transp.bb = true;
+            obj.bbTransport = transp;
         end
         
         function calculate_power(obj)
@@ -578,7 +659,11 @@ classdef Windfarm < handle
                 outLines = obj.outPipes;
             else
                 lines = obj.cables;
-                outLines = obj.outCables;
+                if obj.scenario == "fullElectric" || obj.scenario == "electricToH2"
+                    outLines = obj.outCables;
+                else
+                    outLines = obj.outPipes;
+                end
             end
             
             numLines = numel(lines);
@@ -609,20 +694,38 @@ classdef Windfarm < handle
                 OutLinePower = 0;
                 
                 for i = 1:numOutlines
-                    outLines(i).calculate_power()
+                    outLines(i).calculate_power();
                     OutLinePower = OutLinePower + outLines(i).outputPower;
                 end
             end
             
-            obj.transportLosses = obj.inputPower - OutLinePower;
 
             % Then the bbplatform losses
             if obj.bbConnectionPlatformPresent
+                if obj.centralSubPresent
+                    obj.bbPlatform.inPressure = obj.sub2mainPipePressure;
+                    obj.bbPlatform.inVoltage = obj.sub2mainCableVRating;
+                    obj.bbPlatform.outPressure = obj.hub2shorePipePressure;
+                    obj.bbPlatform.outVoltage = obj.hub2shoreCableVRating;
+                else
+                    obj.bbPlatform.inPressure = obj.turb2subPipePressure;
+                    obj.bbPlatform.inVoltage = obj.turb2subCableVRating;
+                    obj.bbPlatform.outPressure = obj.hub2shorePipePressure;
+                    obj.bbPlatform.outVoltage = obj.hub2shoreCableVRating;
+                end
                 bbInPower = obj.bbPlatform.calculate_power(OutLinePower);
                 obj.outputPower = bbInPower;
             else
                 obj.outputPower = OutLinePower;
             end
+            
+            % Then the lossen from bbPlatform to shore
+            if obj.bbLength > 0
+                obj.bbTransport.set_power(obj.outputPower);
+                obj.shorePower = obj.bbTransport.outputPower;
+            end
+            
+            obj.transport2shoreLosses = obj.inputPower - obj.shorePower;
             
             % Update properties
             if obj.H2Interconnect
@@ -630,8 +733,87 @@ classdef Windfarm < handle
                 obj.outPipes = outLines;
             else
                 obj.cables = lines;
-                obj.outCables = outLines;
+                if obj.scenario == "fullElectric"
+                    obj.outCables = outLines;
+                else
+                    obj.outPipes = outLines;
+                end
             end
+        end
+        
+        function cost = calculateCost(obj)
+            global costsParams;
+            % Calculate total CAPEX
+            % calculate turbine capex
+            turbCapex = 0;
+            for i = 1:numel(obj.turbines)
+                % turb equipment + installation costs
+                turbCapex = turbCapex + obj.turbines(i).calculateCost();
+            end
+            
+            transpCapex = 0;
+            % Calculate cables capex
+            if numel(obj.cables) > 0
+                for i = 1:numel(obj.cables)
+                    transpCapex = transpCapex + obj.cables(i).calculateCost();
+                end
+            end
+            if numel(obj.outCables) > 0
+                for i = 1:numel(obj.outCables)
+                    transpCapex = transpCapex + obj.outCables(i).calculateCost();
+                end
+            end
+            % calculate pipes capex
+            if numel(obj.pipes) > 0
+                for i = 1:numel(obj.pipes)
+                    transpCapex = transpCapex + obj.pipes(i).calculateCost();
+                end
+            end
+            if numel(obj.outPipes) > 0
+                for i = 1:numel(obj.outPipes)
+                    transpCapex = transpCapex + obj.outPipes(i).calculateCost();
+                end
+            end
+            % backbone capex
+            if numel(obj.bbTransport) > 0
+                for i = 1:numel(obj.bbTransport)
+                    transpCapex = transpCapex + obj.bbTransport(i).calculateCost();
+                end
+            end
+            
+            % platform capex
+            platfCapex = 0;
+            if numel(obj.bbPlatform) > 0
+                for i = 1:numel(obj.bbPlatform)
+                    platfCapex = platfCapex + obj.bbPlatform(i).calculateCost();
+                end
+            end
+            if numel(obj.subPlatform) > 0
+                for i = 1:numel(obj.subPlatform)
+                    platfCapex = platfCapex + obj.subPlatform(i).calculateCost();
+                end
+            end
+            
+            total_equipm_install_cost = turbCapex + transpCapex + platfCapex;
+            obj.CAPEXlist.turbines = turbCapex;
+            obj.CAPEXlist.transport = transpCapex;
+            obj.CAPEXlist.platforms = platfCapex;
+            
+            % calculate opex
+            obj.OPEX = costsParams.maintenance * total_equipm_install_cost;
+            
+            % Calculate other costs
+            managementCost = costsParams.management * (obj.ratedPower / 1e9) * (1-costsParams.management_2050reduction);
+            insuranceCost = total_equipm_install_cost * costsParams.insurance;
+            
+            obj.CAPEXlist.management = managementCost;
+            obj.CAPEXlist.insurance = insuranceCost;
+            
+            obj.CAPEX = total_equipm_install_cost + managementCost + insuranceCost;
+            
+            % calculate LCOE
+            energyProduction = (obj.shorePower/1e6) * 24 * 365; % MWh
+            obj.LCOE = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / energyProduction;
         end
         
         function plot(obj, grid)

@@ -46,7 +46,7 @@ property.shapes.CDDA = "GIS_data/CDDA.shp";
 property.shapes.fishing = "GIS_data/Average_MW_Fishing"; % average mW fishing hours
 property.shapes.windfarms = "GIS_data/windfarm.shp"; % already existing + under construction windfarms
 property.shapes.pipelines = "GIS_data/backbone_simplified/Complete_Backbone_Simplify.shp"; % already existing pipelines (used+unused)
-property.shapes.onshoreConnections = "GIS_data/onshoreConnections/onshore_connection_points.shp"; % possible onshore connection points
+property.shapes.onshoreConnections = "GIS_data/onshoreConnections/Connection Points.shp"; % possible onshore connection points
 
 %----------------------
 %      CLUSTERS          
@@ -54,9 +54,10 @@ property.shapes.onshoreConnections = "GIS_data/onshoreConnections/onshore_connec
 
 % What connection point to connect to
 % 'closest' --> calculate closest connection point from offshore platform
-% "NL", "DK", "DE", "NOR", "UK", "BE", "FR" --> Connects to closest connection point in
+% "NL", "DK", "DE", "NO", "UK", "BE", "FR", "GE" --> Connects to closest connection point in
 % corresponding country
-property.shoreConnectionPoint = "NL"; 
+%property.shoreConnectionPoint = "NL"; 
+property.shoreConnectionPoint = 5;
 
 
 % clusterMappingOption: How should the cluster layout be?
@@ -85,6 +86,10 @@ property.farmPower = 1; % GW
 % Minimum turbines required in a farm
 property.farmMinTurbs = 2;
 
+% General baseload of backbone
+property.BBbaseload = 0.6; % 60 % baseload
+
+
 %----------------------
 %     TURBINES        
 %----------------------
@@ -93,9 +98,11 @@ property.farmMinTurbs = 2;
 property.turbRating = 12e6; % W (power rating)
 property.airDensity = 1.225; % kg/m3 (Air Density)
 property.turbRadius = 110; % m (turbine radius)
-property.turbMaxWind = 25; % m/s (max rated wind speed)
+property.turbMaxWind = 22; % m/s (max rated wind speed)
+property.turbMinWind = 4.5; % m/s (min rated windspeed) 
 property.turbHubHeight = 260; % m (hub height)
-
+property.turbH2Eff = 0.82; % percent
+property.turbWindEff = 0.3; % percentage of wind energy converted to electricity
 
 %----------------------
 %     SUBPLATFORMS        
@@ -123,11 +130,11 @@ property.platform.comprOutPress = 30; %bar
 property.dielectricLossFactor = 4e-2;
 
 % Turbine --> subStation cable rating
-property.turb2subCableVRating = 66; % kV (voltage rating)
-property.turb2subCableIRating = 775; % A (current rating)
+property.turb2subCableVRating = 275; % kV (voltage rating)
+property.turb2subCableIRating = 825; % A (current rating)
 property.turb2subCableFreq = 50; % Hz
-property.turb2subCableA = 800; % mm2 (cross-section)
-property.turb2subCableCap = 0.35; % uF / km (capacitance)
+property.turb2subCableA = 1000; % mm2 (cross-section)
+property.turb2subCableCap = 0.18; % uF / km (capacitance)
 property.turb2subCableRho = 0.0171; % Ohm * mm2/m (copper resistivity)
 
 % substation --> bb cable rating
@@ -151,7 +158,7 @@ property.hub2shoreCableRho = 0.0171; % Ohm * mm2/m (copper resistivity)
 %----------------------
 % edit: not sure what values need to be set here... %
 property.H2density = 0.08988; % kg/m3 (H2 density @ 288 K, 1bar)
-property.H2specEnergy = 39405.6; % Wh/kg (H2 specific energy)
+property.H2specEnergy = 39389; % Wh/kg (H2 specific energy)
 property.H2compressibility = 1.06; 
 property.H2normalGasTemp = 291; % K
 property.H2gravity = 0.0696;

@@ -35,6 +35,7 @@ classdef Pipe < Transport
             obj.basePress = property.basePress; % bar
             obj.H2gravity = property.H2gravity;
             obj.maxV = property.maxV;
+            obj.bbBasePerc = property.BBbaseload;
             
             obj.radius = radius;
             obj.inPressure = pressure;
@@ -45,10 +46,12 @@ classdef Pipe < Transport
             obj.maxFlow = pi * obj.radius^2 * obj.maxV * 3600 * 24; % m3/day standard
             
             % Calculate power rating
-            actual_density = obj.inPressure * obj.H2density; % estimation (doesnt include temp)
+            actual_density = (obj.inPressure * 0.75) * obj.H2density; % estimation 3/4 the input pressure is taken as mean pipe pressure
             
-            obj.power_rating = actual_density * obj.maxFlow * obj.H2specEnergy * 1/24;  %at base conditions
+            obj.power_rating = actual_density * obj.maxFlow * obj.H2specEnergy * 1/24;  
+            %obj.power_rating = obj.H2density * obj.maxFlow * obj.H2specEnergy * 1/24;  %at base conditions
             obj.power_capacity = obj.power_rating;
+            obj.bbBasePower = obj.bbBasePerc * obj.power_rating;
             
             obj.connected.turbines = Turbine.empty;
         end
@@ -68,13 +71,25 @@ classdef Pipe < Transport
             
             % Calculate pressure drop
             % Calculate actual gas flow
-            %obj.inputPower = 120e6;
-            gasFlow = obj.inputPower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
+            % obj.inputPower = 120e6;
             
-            obj.actualFlow = gasFlow;
+            if obj.bb
+                % calculate gasflow of base power + inputPower
+                gasFlowTot = (obj.inputPower+obj.bbBasePower) * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
+                gasFlowBase = obj.bbBasePower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
+                
+                obj.outPressure = obj.pressure_drop(gasFlowTot) + (obj.inPressure - obj.pressure_drop(gasFlowBase));
+            else
+                gasFlow = obj.inputPower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
+                obj.actualFlow = gasFlow;
             
-            obj.outPressure = obj.pressure_drop(gasFlow);
+                obj.outPressure = obj.pressure_drop(gasFlow);
+            end
             
+            if obj.outPressure < 0
+                error("Pressure drop is too big");
+            end
+                
             obj.outputPower = obj.outPressure / obj.inPressure * obj.inputPower;
         end
         
@@ -82,11 +97,17 @@ classdef Pipe < Transport
             % Calculate pressure drop
             outP2 = (obj.inPressure * 100)^2 - obj.H2gravity * obj.H2normalGasTemp * obj.length * obj.H2compressibility * (267.13 * gasFlow * obj.pipe_efficiency^(-1) * ((obj.basePress*100)/obj.baseTemp) * (2*obj.radius*1000)^(-2.667))^2;
             
-            if outP2 < 0
-                error("Pressure drop is too big");
-            end
-            
             outPressure = sqrt(outP2) / 100; % in bar
+        end
+        
+        function cost = calculateCost(obj)
+            global costsParams;
+            if obj.bb
+                cost = costsParams.hub2shorePipe * obj.length;
+            else
+                cost = costsParams.turb2subPipe * obj.length;
+            end
+            obj.CAPEX = cost;
         end
     end
 end
