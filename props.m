@@ -54,9 +54,6 @@ property.shapes.onshoreConnections = "GIS_data/onshoreConnections/Connection Poi
 
 % What connection point to connect to
 % 'closest' --> calculate closest connection point from offshore platform
-% "NL", "DK", "DE", "NO", "UK", "BE", "FR", "GE" --> Connects to closest connection point in
-% corresponding country
-%property.shoreConnectionPoint = "NL"; 
 property.shoreConnectionPoint = 5;
 
 
@@ -95,14 +92,14 @@ property.BBbaseload = 0.6; % 60 % baseload
 %----------------------
 
 % Turbine parameters
-property.turbRating = 12e6; % W (power rating)
+property.turbRating = 20e6; % W (power rating)
 property.airDensity = 1.225; % kg/m3 (Air Density)
-property.turbRadius = 110; % m (turbine radius)
-property.turbMaxWind = 22; % m/s (max rated wind speed)
+property.turbRadius = 135; % m (turbine radius)
+property.turbMaxWind = 25; % m/s (max rated wind speed)
 property.turbMinWind = 4.5; % m/s (min rated windspeed) 
-property.turbHubHeight = 260; % m (hub height)
-property.turbH2Eff = 0.82; % percent
-property.turbWindEff = 0.3; % percentage of wind energy converted to electricity
+property.turbHubHeight = 185; % m (hub height)
+property.turbH2Eff = 0.85; % percent
+property.turbWindEff = 0.4; % percentage of wind energy converted to electricity
 
 %----------------------
 %     SUBPLATFORMS        
@@ -111,8 +108,8 @@ property.turbWindEff = 0.3; % percentage of wind energy converted to electricity
 property.platform.floating = false; % 
 
 % Electrolyser parameters
-property.platform.electrolyserEff = 82; % percent
-property.platform.electrolyserOutPress = 30; % Bar
+property.platform.electrolyserEff = 85; % percent
+property.platform.electrolyserOutPress = 50; % Bar
 
 % Transformer parameters
 property.platform.transfEff = 95; % percent
@@ -130,11 +127,11 @@ property.platform.comprOutPress = 30; %bar
 property.dielectricLossFactor = 4e-2;
 
 % Turbine --> subStation cable rating
-property.turb2subCableVRating = 275; % kV (voltage rating)
-property.turb2subCableIRating = 825; % A (current rating)
+property.turb2subCableVRating = 90; % kV (voltage rating)
+property.turb2subCableIRating = 775; % A (current rating)
 property.turb2subCableFreq = 50; % Hz
-property.turb2subCableA = 1000; % mm2 (cross-section)
-property.turb2subCableCap = 0.18; % uF / km (capacitance)
+property.turb2subCableA = 800; % mm2 (cross-section)
+property.turb2subCableCap = 0.26; % uF / km (capacitance)
 property.turb2subCableRho = 0.0171; % Ohm * mm2/m (copper resistivity)
 
 % substation --> bb cable rating
@@ -146,10 +143,10 @@ property.sub2hubCableCap = 0.18; % uF / km (capacitance)
 property.sub2hubCableRho = 0.0171; % Ohm * mm2/m (copper resistivity)
 
 % Backbone cable rating
-property.hub2shoreCableVRating = 525; % kV (voltage rating)
-property.hub2shoreCableIRating = 4952; % A (current rating)
+property.hub2shoreCableVRating = 800; % kV (voltage rating)
+property.hub2shoreCableIRating = 5625; % A (current rating)
 property.hub2shoreCableFreq = 0; % if cable is AC or DC (true = AC, false = DC)
-property.hub2shoreCableA = 3000; % mm2 (cross-section)
+property.hub2shoreCableA = 3500; % mm2 (cross-section)
 property.hub2shoreCableCap = 0; % uF / km (capacitance)
 property.hub2shoreCableRho = 0.0171; % Ohm * mm2/m (copper resistivity)
 
@@ -169,7 +166,7 @@ property.specHeatRatio = 1.41; % Cp / Cv
 
 % Turbine --> hub pipe rating
 property.turb2subPipePressure = 30; % bar (pressure rating)
-property.turb2subPipeRadius = 0.25; % m (pipe radius)
+property.turb2subPipeRadius = 0.15; % m (pipe radius)
 property.turb2subPipeGasFlow = 339292; % m3/day (gas volumetric flow)
 property.turb2subPipeEff = 0.95; % pipeline efficiency
 property.turb2subInT = 50; % degC (input temp)
@@ -184,8 +181,8 @@ property.sub2mainInT = 50; % degC (input temp)
 property.sub2mainoutT = 10; % degC (output temp)
 
 % main --> shore pipe rating
-property.main2bbPipePressure = 80; % bar (pressure rating)
-property.main2bbPipeRadius = 0.5; % m (pipe radius)
+property.main2bbPipePressure = 100; % bar (pressure rating)
+property.main2bbPipeRadius = 0.6; % m (pipe radius)
 property.main2bbPipeGasFlow = 1357168; % m3/day (gas volumetric flow)
 property.main2bbPipeEff = 0.95; % pipeline efficiency
 property.main2bbInT = 50; % degC (input temp)

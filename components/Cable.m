@@ -9,6 +9,7 @@ classdef Cable < Transport
         crossA; % mm2, cross section of cable
         capacitance; % uF / km, capacitance of cable
         dielectricLossFactor;
+        energy_loss; % in % / km
         
         resistivity; % Ohm * mm2 / m
         Rkm;
@@ -65,6 +66,7 @@ classdef Cable < Transport
             end
             
             obj.outputPower = obj.inputPower - Ploss;
+            obj.energy_loss = (obj.outputPower / obj.inputPower) / obj.length * 100;
 
             outP = obj.outputPower;
             
@@ -94,13 +96,12 @@ classdef Cable < Transport
         function cost = calculateCost(obj)
             global costsParams;
             if obj.bb
-                cableCost = costsParams.hub2shoreCosts * obj.length;
+                cableCost = costsParams.hub2shoreCable * obj.length;
             else
-                cableCost = costsParams.turb2subCosts * obj.length;
+                cableCost = costsParams.turb2subCable * obj.length;
             end
-            installCost = costsParams.cableInstallation * obj.length;
-            cost = cableCost + installCost;
-            obj.CAPEX = cost;
+            cost = cableCost;
+            obj.CAPEX = cableCost;
         end
     end
 end

@@ -140,6 +140,8 @@ classdef Transport < handle
             if numel(obj.connected.turbines) == 1
                 obj.nodes = obj.connected.turbines.node;
                 return
+            elseif numel(obj.connected.turbines) < 1
+                return
             end
             
             % Sort Turbine array on nodeNumber

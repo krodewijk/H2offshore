@@ -84,7 +84,7 @@ classdef Turbine < handle
             % Create PV curve
             curve = zeros(1, numel(x));
             for i = 1:numel(x)
-                curve(i) = obj.calculatePower(x(i));
+                curve(i) = obj.calculateWindPower(x(i));
             end
             
             % Multiply random distribution with curve and integrate
@@ -101,16 +101,16 @@ classdef Turbine < handle
             x = 0.1:0.1:25;
             y = zeros(1, numel(x));
             for i = 1:numel(x)
-                y(i) = obj.calculatePower(x(i));
+                y(i) = obj.calculateWindPower(x(i));
             end
             plot(x, y);
             title("PV-Curve Turbine");
             xlabel("Wind (m/s)");
             ylabel("Power (W)");
-            ylim([0, 15e6]);
+            ylim([0, 30e6]);
         end
         
-        function turb_power = calculatePower(obj, wind)
+        function turb_power = calculateWindPower(obj, wind)
             if (wind < obj.max_wind) && (wind > obj.min_wind)
                 % Calculate wind power
                 wind_power = 0.5 * obj.density * obj.A * wind^3;
@@ -130,32 +130,34 @@ classdef Turbine < handle
             
             % Equipment costs (in M-EUR)
             
-            turbEq_2020 = (obj.rating / 1e6) * costsParams.turbCosts;
-            turbEq_2050 = (obj.rating / 1e6) * costsParams.turbCosts * (1-costsParams.turbCosts_2050reduction);
+            turbEq = (obj.rating / 1e6) * costsParams.turbCosts;
             
-            if obj.H2out
-                turbEq_2020 = turbEq_2020 + (obj.rating / 1000) * costsParams.H2ProductionCAPEX;
-            end
+%             if obj.H2out
+%                 turbEq = turbEq + (obj.rating / 1000) * (costsParams.H2ProductionCAPEX / 1e6);
+%             end
             
-            warranty_2020 = (obj.rating / 1e6) * costsParams.turbCostsExtra;
-            warranty_2050 = (warranty_2020 / turbEq_2020) * turbEq_2050;
+            warranty = 0.53 * turbEq;
             
             % Foundation costs
-            pile_length = (1+costsParams.embLperDepth) * abs(obj.depth);
+            if (obj.depth < -60)
+                depth = -60;
+            else
+                depth = obj.depth;
+            end
+            pile_length = (1+costsParams.embLperDepth) * abs(depth);
             transition_piece = costsParams.transitionLength;
             pile_diameter = sqrt(obj.rating / 10e6) * 9;
-            steel_thickness = pile_diameter / costsParams.pileDperThickness * 1000 * (1+costsParams.thickIncr)^((obj.depth - 30)/5);
-            weight_2020 = (pile_length + transition_piece) * pile_diameter * pi * steel_thickness/1000 * costsParams.steelWeight;
-            weight_2050 = (1-costsParams.pileDperThickness_2050reduction)*weight_2020;
-            steel_costs = weight_2050 * costsParams.steelCosts / 1e6;
-            hardw_min_steel = costsParams.foundMinSteel * weight_2050 / 1000;
+            steel_thickness = pile_diameter / costsParams.pileDperThickness * 1000 * (1+costsParams.thickIncr)^((abs(depth) - 30)/5);
+            weight = (pile_length + transition_piece) * pile_diameter * pi * steel_thickness/1000 * costsParams.steelWeight;
+            steel_costs = weight * costsParams.steelCosts / 1e6;
+            hardw_min_steel = costsParams.foundMinSteel * weight / 1000;
             total_no_instal = steel_costs + hardw_min_steel;
             
             % Installation costs
-            turbInstall = costsParams.turbInstallation * (1-costsParams.turbInstallation_2050reduction) * obj.rating/1e6;
-            foundInstall = (costsParams.foundInstallation/1000 * weight_2050) * (1-costsParams.foundInstallation_2050reduction);
+            turbInstall = costsParams.turbInstallation * obj.rating/1e6;
+            foundInstall = (costsParams.foundInstallation/1000 * weight);
         
-            cost = turbEq_2050 + warranty_2050 + total_no_instal + turbInstall + foundInstall;
+            cost = turbEq + warranty + total_no_instal + turbInstall + foundInstall;
             obj.CAPEX = cost;
         end
     end

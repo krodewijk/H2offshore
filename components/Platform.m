@@ -14,13 +14,14 @@ classdef Platform < handle
         floating;
         depth;
         
-        inputPower = 0;
-        outputPower = 0;
+        inputPower = 0; % W
+        outputPower = 0; % W
         
         electrolyserEff;
         converterEff;
         comprEff;
         comprAdiaEff;
+        compPower;
         
         % H2toH2 parameters
         inPressure;
@@ -116,9 +117,10 @@ classdef Platform < handle
             % Only compressor needed for H2 to H2 transport
             flowRate = obj.inputPower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24 / 1e6; % Mm3 / day
 
-            compPower = 4063.9 * (obj.H2specHeatRatio / (obj.H2specHeatRatio-1)) * flowRate * obj.gasTemp * obj.H2compressibility * (1/obj.comprAdiaEff) * ((obj.outPressure / obj.inPressure)^((obj.H2specHeatRatio - 1)/obj.H2specHeatRatio)-1);
+            obj.compPower = 4063.9 * (obj.H2specHeatRatio / (obj.H2specHeatRatio-1)) * flowRate * obj.gasTemp * obj.H2compressibility * (1/obj.comprAdiaEff) * ((obj.outPressure / obj.inPressure)^((obj.H2specHeatRatio - 1)/obj.H2specHeatRatio)-1);
+            obj.compPower = obj.compPower * 1/obj.comprEff;
             
-            outPower = obj.inputPower - compPower;
+            outPower = obj.inputPower - obj.compPower;
         end
         
         function outPower = EtoEPowerTransfer(obj)
@@ -134,19 +136,22 @@ classdef Platform < handle
         function cost = calculateCost(obj)
             global costsParams;
             
-            platformCost = costsParams.platformEquipm; % Million
-            installCost = costsParams.platformInstallation; % Million
+            platformCost = costsParams.platform;
             
             % Component cost
             % Compressor/transformer??
             % Electrolyser
             if obj.kind == "EtoH2"
-                compCost = costsParams.H2ProductionCAPEX * obj.inputPower / 1e9; % M-EUR
+                compCost = costsParams.H2ProductionCAPEX * obj.inputPower / 1e3; % M-EUR
+            elseif obj.kind == "H2toH2"
+                compCost = costsParams.comprCost * obj.compPower / 1e6; % M-EUR
+            elseif obj.kind == "EtoE"
+                compCost = costsParams.transfCost * obj.inputPower / 1e9; % M-EUR
             else
                 compCost = 0;
             end
             
-            cost = platformCost + installCost + compCost;
+            cost = platformCost + compCost;
             
             obj.CAPEX = cost;
         end

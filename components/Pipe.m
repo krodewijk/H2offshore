@@ -10,6 +10,7 @@ classdef Pipe < Transport
         outTemp; % output temperature degC
         maxFlow; % m3 / day
         actualFlow; % m3 / day
+        energy_loss; % in % / km
         
         power_rating; % in W
         
@@ -90,7 +91,10 @@ classdef Pipe < Transport
                 error("Pressure drop is too big");
             end
                 
-            obj.outputPower = obj.outPressure / obj.inPressure * obj.inputPower;
+            %obj.outputPower = obj.outPressure / obj.inPressure * obj.inputPower;
+            obj.outputPower = obj.inputPower;
+            %obj.energy_loss = (obj.outputPower / obj.inputPower) / obj.length * 100;
+            obj.energy_loss = 0;
         end
         
         function outPressure = pressure_drop(obj, gasFlow)

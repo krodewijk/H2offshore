@@ -6,7 +6,7 @@ classdef Windfarm < handle
         dimensions; % Size of farm in intrinsic coordinates
         H2Interconnect; % true --> pipes interconnect, false --> cables interconnect
         centralSubPresent;
-        scenario;
+        scenario; %'H2inTurb', 'fullElectric' or 'electricToH2'
         onshoreConnection;
         
         % All coordinates of farm
@@ -37,12 +37,16 @@ classdef Windfarm < handle
         outputPower = 0; % power output from substation to central hub (year average)
         shorePower = 0;
         maxPower; % max allowed connected power
+        mean_wind; % average wind speed in windpark (m/s)
+        mean_depth; % average water depth (m)
         
         transport2shoreLosses;
         CAPEX;
         CAPEXlist;
         OPEX;
-        LCOE;
+        LCOE; % EUR / MWh
+        LCOH; % EUR / kg
+        H2Production; % kg
         
         % Turbine cable ratings
         turb2subCableVRating;
@@ -162,8 +166,9 @@ classdef Windfarm < handle
                 end
             end
             
-            obj.calculatePower();
-            
+            % calculate mean wind speed
+            obj.calc_mean_wind();
+            obj.calc_mean_depth();
         end
         
         function placePlatforfm(obj, grid)
@@ -348,37 +353,6 @@ classdef Windfarm < handle
             % Save last cable also...
             pipe.update_connections(grid);
             obj.pipes(end+1) = pipe;
-        end
-        
-        function calculatePower(obj)
-            numTurbs = numel(obj.turbines);
-            powerSum = 0;
-            
-            % Sum all the powers of the turbines
-            for i = 1:numTurbs
-                powerSum = powerSum + obj.turbines(i).rating;
-            end
-            
-            obj.ratedPower = powerSum;
-            
-            % Sum all the output power of connected cables/pipes
-            powerSum = 0;
-            if obj.H2Interconnect
-                % Sum all pipe powers from turbines
-                for i = 1:numel(obj.pipes)
-                    powerSum = powerSum + obj.pipes(i).outputPower;
-                end
-            else
-                % Sum all cable powers from turbines
-                for i = 1:numel(obj.cables)
-                    powerSum = powerSum + obj.cables(i).outputPower;
-                end
-            end
-            
-            obj.inputPower = powerSum;
-            
-            % assume no losses in windfarm
-            obj.outputPower = obj.inputPower;
         end
         
         function connect2hub(obj, grid, hubNode)
@@ -589,7 +563,14 @@ classdef Windfarm < handle
             [xIntrin, yIntrin] = grid.geo2intrin(lat, lon);
             connectionNode = grid.intrin2node(xIntrin, yIntrin);
             
-            obj.connect2hub(grid, connectionNode);
+            
+            if ~isnan(connectionNode)
+                obj.connect2hub(grid, connectionNode);
+            else
+                warning("Can't connect to backbone");
+                obj.bbConnectionPlatformPresent = 0;
+                return
+            end
                 
             % Add a platform at the connection point with the backbone
             if obj.bbConnectionPlatformPresent
@@ -651,6 +632,11 @@ classdef Windfarm < handle
         end
         
         function calculate_power(obj)
+            % Rated power calculation
+            for i = 1:numel(obj.turbines)
+                obj.ratedPower = obj.ratedPower + obj.turbines(i).rating;
+            end
+            
             obj.inputPower = 0;
             % sum inputpowers of all cables/pipes. This is expected
             % averaged power coming from the turbines
@@ -743,6 +729,8 @@ classdef Windfarm < handle
         
         function cost = calculateCost(obj)
             global costsParams;
+            global property;
+            
             % Calculate total CAPEX
             % calculate turbine capex
             turbCapex = 0;
@@ -803,7 +791,7 @@ classdef Windfarm < handle
             obj.OPEX = costsParams.maintenance * total_equipm_install_cost;
             
             % Calculate other costs
-            managementCost = costsParams.management * (obj.ratedPower / 1e9) * (1-costsParams.management_2050reduction);
+            managementCost = costsParams.management * (obj.ratedPower / 1e9);
             insuranceCost = total_equipm_install_cost * costsParams.insurance;
             
             obj.CAPEXlist.management = managementCost;
@@ -814,6 +802,85 @@ classdef Windfarm < handle
             % calculate LCOE
             energyProduction = (obj.shorePower/1e6) * 24 * 365; % MWh
             obj.LCOE = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / energyProduction;
+            
+            if obj.scenario == "H2inTurb"
+                obj.H2Production = (energyProduction * 1e6) / property.H2specEnergy; % kg
+                obj.LCOH = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / obj.H2Production;
+            end
+        end
+        
+        function cost = calculateCostOnLoc(obj)
+            global costsParams;
+            global property;
+            % Calculate CAPEX without tranport to shore
+            % calculate turbine capex
+            turbCapex = 0;
+            for i = 1:numel(obj.turbines)
+                % turb equipment + installation costs
+                turbCapex = turbCapex + obj.turbines(i).calculateCost();
+            end
+            
+            transpCapex = 0;
+            % Calculate inter-array cables capex
+            if numel(obj.cables) > 0
+                for i = 1:numel(obj.cables)
+                    transpCapex = transpCapex + obj.cables(i).calculateCost();
+                end
+            end
+            % calculate inter-array pipes capex
+            if numel(obj.pipes) > 0
+                for i = 1:numel(obj.pipes)
+                    transpCapex = transpCapex + obj.pipes(i).calculateCost();
+                end
+            end
+            
+            total_equipm_install_cost = turbCapex + transpCapex;
+            obj.CAPEXlist.turbines = turbCapex;
+            obj.CAPEXlist.transport = transpCapex;
+            
+            % Calculate other costs
+            managementCost = costsParams.management * (obj.ratedPower / 1e9);
+            insuranceCost = total_equipm_install_cost * costsParams.insurance;
+            
+            % calculate opex
+            obj.OPEX = costsParams.maintenance * total_equipm_install_cost;
+            
+            obj.CAPEX = total_equipm_install_cost + managementCost + insuranceCost;
+            obj.CAPEXlist.turbines = turbCapex;
+            obj.CAPEXlist.transport = transpCapex;
+            obj.CAPEXlist.management = managementCost;
+            obj.CAPEXlist.insurance = insuranceCost;
+            
+            % calculate LCOE/LCOH
+            energyProduction = (obj.inputPower/1e6) * 24 * 365; % MWh
+            obj.LCOE = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / energyProduction;
+            
+            if obj.scenario == "H2inTurb"
+                obj.H2Production = (energyProduction * 1e6) / property.H2specEnergy; % kg
+                obj.LCOH = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / obj.H2Production;
+            end
+        end
+        
+        function mean = calc_mean_wind(obj)
+            mean = 0;
+            num = 0;
+            for i = 1:numel(obj.turbines)
+                mean = mean + obj.turbines(i).wind;
+                num = num + 1;
+            end
+            mean = mean/num;
+            obj.mean_wind = mean;
+        end
+        
+        function mean = calc_mean_depth(obj)
+            mean = 0;
+            num = 0;
+            for i = 1:numel(obj.turbines)
+                mean = mean + obj.turbines(i).depth;
+                num = num + 1;
+            end
+            mean = mean/num;
+            obj.mean_depth = mean;
         end
         
         function plot(obj, grid)

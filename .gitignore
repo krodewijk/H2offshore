@@ -1,4 +1,6 @@
 /GIS_data
+/results
+/output
 *.asv
 
 loaded_grid1.5.mat
