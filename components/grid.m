@@ -399,10 +399,14 @@ classdef grid < handle
                 if i > numel(points)
                     break;
                 end
+                if i == 4
+                    disp("hoi");
+                end
                 cur_point = points(i).coords;
                 
                 tbr = [];
                 
+                % search all next points
                 for k = (i+1):numPoints
                     if k > numel(points)
                         break;
@@ -532,6 +536,9 @@ classdef grid < handle
             dim = size(obj.lat);
             x = ceil(node / dim(2));
             y = mod(node, dim(2));
+            if y == 0 
+                y = dim(2);
+            end
         end
         
         function [xIntrin,yIntrin] = geo2intrin(obj, lat, lon)

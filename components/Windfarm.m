@@ -32,10 +32,18 @@ classdef Windfarm < handle
         outCables = Cable.empty; % Cable(s) to main hub
         pipes = Pipe.empty; % turbine pipes
         outPipes = Pipe.empty;
+        
+        capacityFactor = 0;
+        
         ratedPower = 0; % sum of the rated powers of all connected turbines
         inputPower = 0; % sum of power of all incoming powers via cables/pipes from turbines (year average)
         outputPower = 0; % power output from substation to central hub (year average)
         shorePower = 0;
+        
+        inputEnergy = 0; % Expected generated energy over 1 year in GWh
+        outputEnergy = 0; % Expected generated energy that reaches backbone over 1 year in GWh
+        shoreEnergy = 0; % Expected generated energy that reaches shore over 1 year in GWh
+        
         maxPower; % max allowed connected power
         mean_wind; % average wind speed in windpark (m/s)
         mean_depth; % average water depth (m)
@@ -44,7 +52,9 @@ classdef Windfarm < handle
         CAPEX;
         CAPEXlist;
         OPEX;
+        OPEXlist;
         LCOE; % EUR / MWh
+        LCOElist;
         LCOH; % EUR / kg
         H2Production; % kg
         
@@ -725,6 +735,11 @@ classdef Windfarm < handle
                     obj.outPipes = outLines;
                 end
             end
+            
+            obj.inputEnergy = obj.inputPower * 8760 / 1e9;
+            obj.outputEnergy = obj.outputPower * 8760 / 1e9;
+            obj.shoreEnergy = obj.shorePower * 8760 / 1e9;
+            obj.capacityFactor = obj.inputPower / obj.ratedPower;
         end
         
         function cost = calculateCost(obj)
@@ -769,16 +784,19 @@ classdef Windfarm < handle
                 end
             end
             
-            % platform capex
+            % platform capex & opex
             platfCapex = 0;
+            platfOpex = 0;
             if numel(obj.bbPlatform) > 0
                 for i = 1:numel(obj.bbPlatform)
                     platfCapex = platfCapex + obj.bbPlatform(i).calculateCost();
+                    platfOpex = platfOpex + obj.bbPlatform(i).OPEX;
                 end
             end
             if numel(obj.subPlatform) > 0
                 for i = 1:numel(obj.subPlatform)
                     platfCapex = platfCapex + obj.subPlatform(i).calculateCost();
+                    platfOpex = platfOpex + obj.subPlatform(i).OPEX;
                 end
             end
             
@@ -787,9 +805,11 @@ classdef Windfarm < handle
             obj.CAPEXlist.transport = transpCapex;
             obj.CAPEXlist.platforms = platfCapex;
             
-            % calculate opex
-            obj.OPEX = costsParams.maintenance * total_equipm_install_cost;
-            
+            % calculate opex costs per component
+            obj.OPEXlist.turbines = obj.CAPEXlist.turbines * costsParams.maintenance;
+            obj.OPEXlist.transport = obj.CAPEXlist.transport * costsParams.maintenance;
+            obj.OPEXlist.platforms = obj.CAPEXlist.platforms * costsParams.maintenance + platfOpex;
+
             % Calculate other costs
             managementCost = costsParams.management * (obj.ratedPower / 1e9);
             insuranceCost = total_equipm_install_cost * costsParams.insurance;
@@ -800,13 +820,45 @@ classdef Windfarm < handle
             obj.CAPEX = total_equipm_install_cost + managementCost + insuranceCost;
             
             % calculate LCOE
-            energyProduction = (obj.shorePower/1e6) * 24 * 365; % MWh
-            obj.LCOE = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / energyProduction;
+            obj.calculateLCOE();
+        end
+        
+        function calculateLCOE(obj)
+            global costsParams;
             
-            if obj.scenario == "H2inTurb"
-                obj.H2Production = (energyProduction * 1e6) / property.H2specEnergy; % kg
-                obj.LCOH = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / obj.H2Production;
+            energyProduction = obj.shoreEnergy * 1e3; % MWh
+            
+            % Calculate LCOE contribution of the turbines
+            if numel(obj.turbines) > 0
+                annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.turbines(1).lifetime) / ((1+costsParams.WACC)^obj.turbines(1).lifetime - 1);
+                obj.LCOElist.turbines = (obj.CAPEXlist.turbines * annuity_factor + obj.OPEXlist.turbines) * 1e6 / energyProduction;
+            else
+                obj.LCOElist.turbines = 0;
             end
+            
+            % Calculate LCOE contribution of the transport components
+            if numel(obj.bbTransport) > 0
+                annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.bbTransport(1).lifetime) / ((1+costsParams.WACC)^obj.bbTransport(1).lifetime - 1);
+                obj.LCOElist.transport = (obj.CAPEXlist.transport * annuity_factor + obj.OPEXlist.transport) * 1e6 / energyProduction;
+            else
+                obj.LCOElist.transport = 0;
+            end
+            
+            % Calculate LCOE contribution of the platform components
+            if numel(obj.bbPlatform) > 0
+                annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.bbPlatform.lifetime) / ((1+costsParams.WACC)^obj.bbPlatform.lifetime - 1);
+                obj.LCOElist.platforms = (obj.CAPEXlist.platforms * annuity_factor + obj.OPEXlist.platforms) * 1e6 / energyProduction;
+            else
+                obj.LCOElist.platforms = 0;
+            end
+            
+            % Calculate LCOE contribution of other costs using annuity
+            % factor of the turbines
+            annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.turbines(1).lifetime) / ((1+costsParams.WACC)^obj.turbines(1).lifetime - 1);
+            obj.LCOElist.other = ((obj.CAPEXlist.management + obj.CAPEXlist.insurance) * annuity_factor) * 1e6 / energyProduction;
+            
+            % Sum all individual LCOE components
+            obj.LCOE = obj.LCOElist.turbines + obj.LCOElist.transport + obj.LCOElist.platforms + obj.LCOElist.other;
         end
         
         function cost = calculateCostOnLoc(obj)
@@ -835,30 +887,31 @@ classdef Windfarm < handle
             end
             
             total_equipm_install_cost = turbCapex + transpCapex;
-            obj.CAPEXlist.turbines = turbCapex;
-            obj.CAPEXlist.transport = transpCapex;
             
             % Calculate other costs
             managementCost = costsParams.management * (obj.ratedPower / 1e9);
             insuranceCost = total_equipm_install_cost * costsParams.insurance;
             
-            % calculate opex
-            obj.OPEX = costsParams.maintenance * total_equipm_install_cost;
-            
             obj.CAPEX = total_equipm_install_cost + managementCost + insuranceCost;
             obj.CAPEXlist.turbines = turbCapex;
             obj.CAPEXlist.transport = transpCapex;
+            obj.CAPEXlist.platforms = 0;
             obj.CAPEXlist.management = managementCost;
             obj.CAPEXlist.insurance = insuranceCost;
             
-            % calculate LCOE/LCOH
-            energyProduction = (obj.inputPower/1e6) * 24 * 365; % MWh
-            obj.LCOE = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / energyProduction;
+            % calculate opex
+            obj.OPEX = costsParams.maintenance * total_equipm_install_cost;
+            obj.OPEXlist.turbines = obj.CAPEXlist.turbines * costsParams.maintenance;
+            obj.OPEXlist.transport = obj.CAPEXlist.transport * costsParams.maintenance;
+            obj.OPEXlist.platforms = obj.CAPEXlist.platforms * costsParams.maintenance;
             
-            if obj.scenario == "H2inTurb"
-                obj.H2Production = (energyProduction * 1e6) / property.H2specEnergy; % kg
-                obj.LCOH = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / obj.H2Production;
-            end
+            % calculate LCOE/LCOH
+            obj.calculateLCOE();
+            
+%             if obj.scenario == "H2inTurb"
+%                 obj.H2Production = (energyProduction * 1e6) / property.H2specEnergy; % kg
+%                 obj.LCOH = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / obj.H2Production;
+%             end
         end
         
         function mean = calc_mean_wind(obj)

@@ -6,7 +6,6 @@ global costsParams;
 
 costsParams.WACC = 0.06;
 costsParams.lifetime = 27; % years
-costsParams.annuityFactor = 0.0559; 
 
 % -------------------------- %
 %  TURBINE COST PARAMETERS   %
@@ -28,6 +27,7 @@ costsParams.turbCostsExtra = 0.4; % M-EUR/MW
 costsParams.turbInstallation = 0.041; % M-EUR/MW
 costsParams.turbWeight = 140; % ton/MW
 
+costsParams.turbLifetime = 20; % year
 
 % -------------------------- %
 %    CABLE COST PARAMETERS   %
@@ -35,6 +35,7 @@ costsParams.turbWeight = 140; % ton/MW
 
 costsParams.turb2subCable = 1; % M-EUR/km
 costsParams.hub2shoreCable = 3.1; % M-EUR/km
+costsParams.cableLifetime = 30; % year
 
 % -------------------------- %
 %    PIPE COST PARAMETERS   %
@@ -42,7 +43,7 @@ costsParams.hub2shoreCable = 3.1; % M-EUR/km
 
 costsParams.turb2subPipe = 0.1; % M-EUR/km
 costsParams.hub2shorePipe = 1; % M-EUR/km
-
+costsParams.pipeLifetime = 30; % year
 
 % --------------------------- %
 %  PLATFORM COST PARAMETERS   %
@@ -51,6 +52,7 @@ costsParams.hub2shorePipe = 1; % M-EUR/km
 costsParams.platform = 400; % M-EUR
 costsParams.H2ProductionCAPEX = 150; % EUR/kW
 costsParams.comprCost = 2; % M-EUR/MW
+costsParams.comprElectr = 40; % EUR/MWh
 costsParams.transfCost = 176.75; % M-EUR/GW
 
 % --------------------------- %

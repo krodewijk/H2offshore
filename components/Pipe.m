@@ -27,6 +27,7 @@ classdef Pipe < Transport
     methods
         function obj = Pipe(radius, pressure, pipe_eff, inTemp, outTemp)
             global property;
+            global costsParams;
             
             obj.H2density = property.H2density;
             obj.H2specEnergy = property.H2specEnergy;
@@ -37,6 +38,7 @@ classdef Pipe < Transport
             obj.H2gravity = property.H2gravity;
             obj.maxV = property.maxV;
             obj.bbBasePerc = property.BBbaseload;
+            obj.lifetime = costsParams.cableLifetime;
             
             obj.radius = radius;
             obj.inPressure = pressure;

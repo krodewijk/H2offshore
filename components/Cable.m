@@ -21,6 +21,7 @@ classdef Cable < Transport
     methods
         function obj = Cable(kv_rating, i_rating, freq, A, cap)
             global property;
+            global costsParams;
             
             obj.voltage_rating = kv_rating * 1e3;
             obj.frequency = freq;
@@ -30,6 +31,7 @@ classdef Cable < Transport
             obj.resistivity = property.turb2subCableRho;
             obj.dielectricLossFactor = property.dielectricLossFactor;
             obj.bbBasePerc = property.BBbaseload;
+            obj.lifetime = costsParams.cableLifetime;
             
             % Calculate DC resistance / km
             obj.Rkm = obj.resistivity / obj.crossA * 1000;

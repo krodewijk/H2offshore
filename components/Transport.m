@@ -23,6 +23,7 @@ classdef Transport < handle
         connected = struct;
         power_capacity; % W capacity left in transport
         CAPEX; % M-EUR
+        lifetime;
     end
 
     
@@ -110,7 +111,12 @@ classdef Transport < handle
                 cur_proj = [cur_projX, cur_projY];
                 
                 [x,y] = grid.node2intrin(next_node);
-                next_projX = grid.X(x, y);
+                
+                try
+                    next_projX = grid.X(x, y);
+                catch
+                    disp("Oh fuck")
+                end
                 next_projY = grid.Y(x,y);
                 next_proj = [next_projX, next_projY];
                 

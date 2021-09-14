@@ -7,7 +7,7 @@ global property;
 % 'H2inTurb'     --> Create H2 directly in turbine 
 % 'fullElectric' --> Onshore electrolyzer
 % 'electricToH2' --> Offshore electrolyzer
-property.scenario = 'H2inTurb';
+property.scenario = 'fullElectric';
 
 
 %----------------------
@@ -15,8 +15,8 @@ property.scenario = 'H2inTurb';
 %----------------------
 
 % Limits of generated map
-property.latlim = [50.5, 61.5]; % latitudal (vertical) angle limits in degrees
-property.lonlim = [-3.2, 8.2]; % longitudal (horizontal) angle limits in degrees
+property.latlim = [50.5, 60.5]; % latitudal (vertical) angle limits in degrees
+property.lonlim = [-3.2, 9.1]; % longitudal (horizontal) angle limits in degrees
 
 % Grid resolution
 property.resolution = 2.5; % km grid (possible turbine placement every $RESOLUTION kilometers)
@@ -45,7 +45,7 @@ property.shapes.natura2000 = "GIS_data/natura2000.shp";
 property.shapes.CDDA = "GIS_data/CDDA.shp";
 property.shapes.fishing = "GIS_data/Average_MW_Fishing"; % average mW fishing hours
 property.shapes.windfarms = "GIS_data/windfarm.shp"; % already existing + under construction windfarms
-property.shapes.pipelines = "GIS_data/backbone_simplified/Complete_Backbone_Simplify.shp"; % already existing pipelines (used+unused)
+property.shapes.pipelines = "GIS_data/backbone_node_ready/Complete_Backbone_Simplify.shp"; % already existing pipelines (used+unused)
 property.shapes.onshoreConnections = "GIS_data/onshoreConnections/Connection Points.shp"; % possible onshore connection points
 
 %----------------------
@@ -106,6 +106,7 @@ property.turbWindEff = 0.4; % percentage of wind energy converted to electricity
 %----------------------
 % Platform parameters
 property.platform.floating = false; % 
+property.platform.lifetime = 20;
 
 % Electrolyser parameters
 property.platform.electrolyserEff = 85; % percent
@@ -165,7 +166,7 @@ property.maxV = 20; % m/s (max velocity)
 property.specHeatRatio = 1.41; % Cp / Cv
 
 % Turbine --> hub pipe rating
-property.turb2subPipePressure = 30; % bar (pressure rating)
+property.turb2subPipePressure = 50; % bar (pressure rating)
 property.turb2subPipeRadius = 0.15; % m (pipe radius)
 property.turb2subPipeGasFlow = 339292; % m3/day (gas volumetric flow)
 property.turb2subPipeEff = 0.95; % pipeline efficiency

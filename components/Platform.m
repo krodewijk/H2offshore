@@ -38,6 +38,8 @@ classdef Platform < handle
         outVoltage;
         
         CAPEX; % M-EUR
+        OPEX = 0; % M-EUR
+        lifetime; % years
     end
     
     methods
@@ -63,6 +65,7 @@ classdef Platform < handle
             obj.floating = property.platform.floating;
             obj.depth = grid.data.bath(xIntrin, yIntrin);
             obj.location = loc;
+            obj.lifetime = property.platform.lifetime;
             
 %             if scenario == "H2inTurb"
 %                 obj.kind = "H2toH2";
@@ -120,7 +123,8 @@ classdef Platform < handle
             obj.compPower = 4063.9 * (obj.H2specHeatRatio / (obj.H2specHeatRatio-1)) * flowRate * obj.gasTemp * obj.H2compressibility * (1/obj.comprAdiaEff) * ((obj.outPressure / obj.inPressure)^((obj.H2specHeatRatio - 1)/obj.H2specHeatRatio)-1);
             obj.compPower = obj.compPower * 1/obj.comprEff;
             
-            outPower = obj.inputPower - obj.compPower;
+            %outPower = obj.inputPower - obj.compPower;
+            outPower = obj.inputPower;
         end
         
         function outPower = EtoEPowerTransfer(obj)
@@ -145,6 +149,8 @@ classdef Platform < handle
                 compCost = costsParams.H2ProductionCAPEX * obj.inputPower / 1e3; % M-EUR
             elseif obj.kind == "H2toH2"
                 compCost = costsParams.comprCost * obj.compPower / 1e6; % M-EUR
+                total_year_energy = 365 * 24 * obj.compPower /1e6; % MWh
+                obj.OPEX = total_year_energy * costsParams.comprElectr / 1e6; % M-EUR / year
             elseif obj.kind == "EtoE"
                 compCost = costsParams.transfCost * obj.inputPower / 1e9; % M-EUR
             else

@@ -25,6 +25,7 @@ classdef Turbine < handle
         foundationWeight;
         OPEX;
         CAPEX; % M-EUR
+        lifetime;
         
         node; % node in grid graph
     end
@@ -32,6 +33,8 @@ classdef Turbine < handle
     methods
         function obj = Turbine(grid, xIntrin, yIntrin)
             global property;
+            global costsParams;
+            
             obj.rating = property.turbRating;
             obj.density = property.airDensity; % kg/m3
             obj.A = pi * property.turbRadius^2;
@@ -40,6 +43,8 @@ classdef Turbine < handle
             obj.H2Eff = property.turbH2Eff;
             obj.windEff = property.turbWindEff;
             obj.min_wind = property.turbMinWind; % m/s
+            
+            obj.lifetime = costsParams.turbLifetime;
             
             if property.scenario == "H2inTurb"
                 obj.H2out = true;
