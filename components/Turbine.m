@@ -11,6 +11,7 @@ classdef Turbine < handle
         
         depth; % m
         wind; % m/s
+        wind_hubheight; % m/s
         windVar;
         windDist;
         windDistBins;
@@ -85,6 +86,9 @@ classdef Turbine < handle
             
             % Make from histogram a probability density function
             dist = (1/trapz(x,hist)) .* hist;
+            
+            % Save mean wind speed at hub height for future reference
+            obj.wind_hubheight = hist * x;
             
             % Create PV curve
             curve = zeros(1, numel(x));

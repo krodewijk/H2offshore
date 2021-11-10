@@ -9,7 +9,7 @@ classdef Pipe < Transport
         inTemp; % input temperature degC
         outTemp; % output temperature degC
         maxFlow; % m3 / day
-        actualFlow; % m3 / day
+        actualFlow; % m3 / day (standard conditions)
         energy_loss; % in % / km
         
         power_rating; % in W
@@ -84,7 +84,7 @@ classdef Pipe < Transport
                 obj.outPressure = obj.pressure_drop(gasFlowTot) + (obj.inPressure - obj.pressure_drop(gasFlowBase));
             else
                 gasFlow = obj.inputPower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
-                obj.actualFlow = gasFlow;
+                obj.actualFlow = gasFlow; % in standard conditions
             
                 obj.outPressure = obj.pressure_drop(gasFlow);
             end
@@ -100,7 +100,7 @@ classdef Pipe < Transport
         end
         
         function outPressure = pressure_drop(obj, gasFlow)
-            % Calculate pressure drop
+            % Calculate pressure drop (weymouth eq)
             outP2 = (obj.inPressure * 100)^2 - obj.H2gravity * obj.H2normalGasTemp * obj.length * obj.H2compressibility * (267.13 * gasFlow * obj.pipe_efficiency^(-1) * ((obj.basePress*100)/obj.baseTemp) * (2*obj.radius*1000)^(-2.667))^2;
             
             outPressure = sqrt(outP2) / 100; % in bar

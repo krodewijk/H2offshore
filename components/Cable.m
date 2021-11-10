@@ -80,7 +80,7 @@ classdef Cable < Transport
         function loss = cable_losses(obj, inPower)
             act_I = inPower / obj.voltage_rating;
             if obj.frequency > 0
-                act_I = act_I / sqrt(3);
+                act_I = act_I / sqrt(3); % Line current
             end
             
             % ohmic

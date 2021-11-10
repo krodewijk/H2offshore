@@ -78,13 +78,13 @@ property.farmDim = [10, 10]; % [X, Y] in grid coordinates (so [10,10] is 10 by 1
 
 % Size of windfarm (in total power)
 % CAUTION: if > 0 , property.farDim is now used as max size!
-property.farmPower = 10; % GW
+property.farmPower = 1; % GW
 
 % Minimum turbines required in a farm
 property.farmMinTurbs = 2;
 
 % General baseload of backbone
-property.BBbaseload = 0.6; % 60 % baseload - elektriciteits
+property.BBbaseload = 0.6; % 60 % baseload
 
 
 %----------------------
@@ -92,12 +92,12 @@ property.BBbaseload = 0.6; % 60 % baseload - elektriciteits
 %----------------------
 
 % Turbine parameters
-property.turbRating = 20e6; % W (power rating)
+property.turbRating = 15e6; % W (power rating)
 property.airDensity = 1.225; % kg/m3 (Air Density)
-property.turbRadius = 135; % m (turbine radius)
+property.turbRadius = 110; % m (turbine radius)
 property.turbMaxWind = 25; % m/s (max rated wind speed)
 property.turbMinWind = 4.5; % m/s (min rated windspeed) 
-property.turbHubHeight = 185; % m (hub height)
+property.turbHubHeight = 160; % m (hub height)
 property.turbH2Eff = 0.85; % percent
 property.turbWindEff = 0.54; % percentage of wind energy converted to electricity
 
