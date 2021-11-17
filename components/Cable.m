@@ -60,12 +60,9 @@ classdef Cable < Transport
                 obj.inputPower = powerSum;
             end
             
-            if obj.bb
-                % Add baseload power/current to the cable
-                Ploss = obj.cable_losses(obj.inputPower + obj.bbBasePower) - obj.cable_losses(obj.bbBasePower);
-            else
-                Ploss = obj.cable_losses(obj.inputPower);
-            end
+            % For a backbone cable, no additional baseload power is assumed
+            % on the cable since only one cable per farm will be used
+            Ploss = obj.cable_losses(obj.inputPower);
             
             obj.outputPower = obj.inputPower - Ploss;
             obj.energy_loss = (obj.outputPower / obj.inputPower) / obj.length * 100;

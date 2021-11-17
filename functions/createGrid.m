@@ -29,4 +29,6 @@ g.add_connectionPoints(property.shapes.onshoreConnections);
 
 g.createGraph();
 
-g.resetMask()
+g.resetMask();
+fprintf("\n Saving grid\n");
+save('grid.mat', 'g');

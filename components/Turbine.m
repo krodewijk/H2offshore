@@ -19,14 +19,13 @@ classdef Turbine < handle
         hubHeight; % m
         H2out; % true for inturbine electrolyser, false for electric output
         H2Eff;
-        
+        floating;
+
         xIntrin; % with reference to defined grid 
         yIntrin;
         
-        foundationWeight;
-        OPEX;
-        CAPEX; % M-EUR
-        lifetime;
+        costOffshore = nan;
+        costOnLoc = nan;
         
         node; % node in grid graph
     end
@@ -34,7 +33,6 @@ classdef Turbine < handle
     methods
         function obj = Turbine(grid, xIntrin, yIntrin)
             global property;
-            global costsParams;
             
             obj.rating = property.turbRating;
             obj.density = property.airDensity; % kg/m3
@@ -44,8 +42,6 @@ classdef Turbine < handle
             obj.H2Eff = property.turbH2Eff;
             obj.windEff = property.turbWindEff;
             obj.min_wind = property.turbMinWind; % m/s
-            
-            obj.lifetime = costsParams.turbLifetime;
             
             if property.scenario == "H2inTurb"
                 obj.H2out = true;
@@ -134,40 +130,80 @@ classdef Turbine < handle
             end
         end
         
-        function cost = calculateCost(obj)
-            global costsParams;
+        function cost = calculateCostFromExcel(obj, costTables, distance)
+            % Calculates the costs corresponding to one wind turbine from
+            % the data supplied in the excel sheet. The transportation to
+            % shore is also taken into account.
             
-            % Equipment costs (in M-EUR)
-            
-            turbEq = (obj.rating / 1e6) * costsParams.turbCosts;
-            
-%             if obj.H2out
-%                 turbEq = turbEq + (obj.rating / 1000) * (costsParams.H2ProductionCAPEX / 1e6);
-%             end
-            
-            warranty = 0.53 * turbEq;
-            
-            % Foundation costs
-            if (obj.depth < -60)
-                depth = -60;
+            % determine if the turbine is floating or fixed
+            breakevenPoint = interp1(costTables.distances.Variables, costTables.breakevens.Variables, distance);
+            if abs(obj.depth) > breakevenPoint
+                % floating
+                obj.floating = true;
             else
-                depth = obj.depth;
+                % fixed
+                obj.floating = false;
             end
-            pile_length = (1+costsParams.embLperDepth) * abs(depth);
-            transition_piece = costsParams.transitionLength;
-            pile_diameter = sqrt(obj.rating / 10e6) * 9;
-            steel_thickness = pile_diameter / costsParams.pileDperThickness * 1000 * (1+costsParams.thickIncr)^((abs(depth) - 30)/5);
-            weight = (pile_length + transition_piece) * pile_diameter * pi * steel_thickness/1000 * costsParams.steelWeight;
-            steel_costs = weight * costsParams.steelCosts / 1e6;
-            hardw_min_steel = costsParams.foundMinSteel * weight / 1000;
-            total_no_instal = steel_costs + hardw_min_steel;
+
+            % find the locations in the cost table and interpolate
+            if obj.H2out
+                % hydrogen output
+                if obj.floating
+                    % and floating
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.h2onshore.Variables, double(distance), double(abs(obj.depth)));
+                else
+                    % and fixed
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.h2onshore.Variables, double(distance), double(abs(obj.depth)));
+                end
+            else
+                % electricity output
+                if obj.floating
+                    % and floating
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.grid.Variables, double(distance), double(abs(obj.depth)));
+                else
+                    % and fixed
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.grid.Variables, double(distance), double(abs(obj.depth)));
+                end
+            end
+            obj.costOffshore = cost;
+        end
+
+        function cost = calculateCostFromExcelOnLoc(obj, costTables, distance)
+            % Calculates the costs corresponding to one wind turbine from
+            % the data supplied in the excel sheet. The transportation to
+            % shore is not taken into account
             
-            % Installation costs
-            turbInstall = costsParams.turbInstallation * obj.rating/1e6;
-            foundInstall = (costsParams.foundInstallation/1000 * weight);
-        
-            cost = turbEq + warranty + total_no_instal + turbInstall + foundInstall;
-            obj.CAPEX = cost;
+            % determine if the turbine is floating or fixed
+            breakevenPoint = interp1(costTables.distances.Variables, costTables.breakevens.Variables, distance);
+            if abs(obj.depth) > breakevenPoint
+                % floating
+                obj.floating = true;
+            else
+                % fixed
+                obj.floating = false;
+            end
+
+            % find the locations in the cost table and interpolate
+            if obj.H2out
+                % hydrogen output
+                if obj.floating
+                    % and floating
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.h2offshore.Variables, double(distance), double(abs(obj.depth)));
+                else
+                    % and fixed
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.h2offshore.Variables, double(distance), double(abs(obj.depth)));
+                end
+            else
+                % electricity output
+                if obj.floating
+                    % and floating
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.turbine.Variables, double(distance), double(abs(obj.depth)));
+                else
+                    % and fixed
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.turbine.Variables, double(distance), double(abs(obj.depth)));
+                end
+            end
+            obj.costOnLoc = cost;
         end
     end
 end

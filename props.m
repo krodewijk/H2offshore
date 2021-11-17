@@ -7,7 +7,7 @@ global property;
 % 'H2inTurb'     --> Create H2 directly in turbine 
 % 'fullElectric' --> Onshore electrolyzer
 % 'electricToH2' --> Offshore electrolyzer
-property.scenario = 'fullElectric';
+property.scenario = 'H2inTurb';
 
 
 %----------------------
@@ -113,7 +113,7 @@ property.platform.electrolyserEff = 85; % percent
 property.platform.electrolyserOutPress = 50; % Bar
 
 % Transformer parameters
-property.platform.transfEff = 95; % percent
+property.platform.transfEff = 0.95; % percent
 property.platform.transOutVolt = 220; % kV
 
 % Compressor parameters

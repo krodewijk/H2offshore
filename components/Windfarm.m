@@ -22,7 +22,7 @@ classdef Windfarm < handle
         subPlatform;
         bbConnectionPlatformPresent;
         bbPlatform;
-        bbLength = 0;
+        bbLength = 0; % km
         bbLines;
         bbNodes;
         bbTransport;
@@ -49,13 +49,12 @@ classdef Windfarm < handle
         mean_depth; % average water depth (m)
         
         transport2shoreLosses;
-        CAPEX;
-        CAPEXlist;
-        OPEX;
-        OPEXlist;
-        LCOE; % EUR / MWh
-        LCOElist;
+        costOnshore;
+        costOnLoc;
+        LCOEOnshore; % EUR / MWh
+        LCOEOnLoc; % EUR / MWh
         LCOH; % EUR / kg
+
         H2Production; % kg
         
         % Turbine cable ratings
@@ -635,6 +634,10 @@ classdef Windfarm < handle
                 % Create pipe
                 transp = Pipe(obj.hub2shorePipeRadius, obj.hub2shorePipePressure, obj.hub2shorePipeEff, 50, 15);
             end
+
+            if transp.power_rating < obj.ratedPower
+                error("The power rating of the backbone is too low for the farm.")
+            end
             
             transp.length = obj.bbLength;
             transp.bb = true;
@@ -694,7 +697,6 @@ classdef Windfarm < handle
                     OutLinePower = OutLinePower + outLines(i).outputPower;
                 end
             end
-            
 
             % Then the bbplatform losses
             if obj.bbConnectionPlatformPresent
@@ -742,176 +744,48 @@ classdef Windfarm < handle
             obj.capacityFactor = obj.inputPower / obj.ratedPower;
         end
         
-        function cost = calculateCost(obj)
-            global costsParams;
-            global property;
+        function calculateCost(obj)
+            % Read the correct value from the costTable
+            global costTables;
             
-            % Calculate total CAPEX
-            % calculate turbine capex
-            turbCapex = 0;
-            for i = 1:numel(obj.turbines)
-                % turb equipment + installation costs
-                turbCapex = turbCapex + obj.turbines(i).calculateCost();
+            numTurbs = numel(obj.turbines);
+            totalCostsShore = 0; % M-EUR
+            % Calculate turbine costs at shore
+            for i = 1:numTurbs
+                totalCostsShore = totalCostsShore + obj.turbines(i).calculateCostFromExcel(costTables, obj.bbLength);
             end
-            
-            transpCapex = 0;
-            % Calculate cables capex
-            if numel(obj.cables) > 0
-                for i = 1:numel(obj.cables)
-                    transpCapex = transpCapex + obj.cables(i).calculateCost();
-                end
-            end
-            if numel(obj.outCables) > 0
-                for i = 1:numel(obj.outCables)
-                    transpCapex = transpCapex + obj.outCables(i).calculateCost();
-                end
-            end
-            % calculate pipes capex
-            if numel(obj.pipes) > 0
-                for i = 1:numel(obj.pipes)
-                    transpCapex = transpCapex + obj.pipes(i).calculateCost();
-                end
-            end
-            if numel(obj.outPipes) > 0
-                for i = 1:numel(obj.outPipes)
-                    transpCapex = transpCapex + obj.outPipes(i).calculateCost();
-                end
-            end
-            % backbone capex
-            if numel(obj.bbTransport) > 0
-                for i = 1:numel(obj.bbTransport)
-                    transpCapex = transpCapex + obj.bbTransport(i).calculateCost();
-                end
-            end
-            
-            % platform capex & opex
-            platfCapex = 0;
-            platfOpex = 0;
-            if numel(obj.bbPlatform) > 0
-                for i = 1:numel(obj.bbPlatform)
-                    platfCapex = platfCapex + obj.bbPlatform(i).calculateCost();
-                    platfOpex = platfOpex + obj.bbPlatform(i).OPEX;
-                end
-            end
-            if numel(obj.subPlatform) > 0
-                for i = 1:numel(obj.subPlatform)
-                    platfCapex = platfCapex + obj.subPlatform(i).calculateCost();
-                    platfOpex = platfOpex + obj.subPlatform(i).OPEX;
-                end
-            end
-            
-            total_equipm_install_cost = turbCapex + transpCapex + platfCapex;
-            obj.CAPEXlist.turbines = turbCapex;
-            obj.CAPEXlist.transport = transpCapex;
-            obj.CAPEXlist.platforms = platfCapex;
-            
-            % calculate opex costs per component
-            obj.OPEXlist.turbines = obj.CAPEXlist.turbines * costsParams.maintenance;
-            obj.OPEXlist.transport = obj.CAPEXlist.transport * costsParams.maintenance;
-            obj.OPEXlist.platforms = obj.CAPEXlist.platforms * costsParams.maintenance + platfOpex;
 
-            % Calculate other costs
-            managementCost = costsParams.management * (obj.ratedPower / 1e9);
-            insuranceCost = total_equipm_install_cost * costsParams.insurance;
+            totalCostsOnLoc = 0; % M-EUR
+            % Calculate turbine costs at farm location
+            for i = 1:numTurbs
+                totalCostsOnLoc = totalCostsOnLoc + obj.turbines(i).calculateCostFromExcelOnLoc(costTables, obj.bbLength);
+            end
+
+            % Add hydrogen compression costs
+            if obj.bbPlatform.kind == "H2toH2"
+                % calculate compressor energy needed in one year
+                comprEnergy = obj.bbPlatform.compPower * 8760 / 1e6; % MWh
+
+                % make a simple electricity cost estimation of the farm
+                electricityPrice = (totalCostsOnLoc * 1e6) / (obj.outputEnergy * 1000); % EUR/MWh
+
+                comprPrice = comprEnergy * electricityPrice / 1e6; % M-EUR
+                totalCostsShore = totalCostsShore + comprPrice;
+            end
             
-            obj.CAPEXlist.management = managementCost;
-            obj.CAPEXlist.insurance = insuranceCost;
-            
-            obj.CAPEX = total_equipm_install_cost + managementCost + insuranceCost;
+            obj.costOnshore = totalCostsShore;
+            obj.costOnLoc = totalCostsOnLoc;
             
             % calculate LCOE
             obj.calculateLCOE();
         end
         
         function calculateLCOE(obj)
-            global costsParams;
+            energyProductionOnshore = obj.shoreEnergy * 1e3; % MWh
+            energyProductionOnLoc = obj.outputEnergy * 1e3; % MWh
             
-            energyProduction = obj.shoreEnergy * 1e3; % MWh
-            
-            % Calculate LCOE contribution of the turbines
-            if numel(obj.turbines) > 0
-                annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.turbines(1).lifetime) / ((1+costsParams.WACC)^obj.turbines(1).lifetime - 1);
-                obj.LCOElist.turbines = (obj.CAPEXlist.turbines * annuity_factor + obj.OPEXlist.turbines) * 1e6 / energyProduction;
-            else
-                obj.LCOElist.turbines = 0;
-            end
-            
-            % Calculate LCOE contribution of the transport components
-            if numel(obj.bbTransport) > 0
-                annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.bbTransport(1).lifetime) / ((1+costsParams.WACC)^obj.bbTransport(1).lifetime - 1);
-                obj.LCOElist.transport = (obj.CAPEXlist.transport * annuity_factor + obj.OPEXlist.transport) * 1e6 / energyProduction;
-            else
-                obj.LCOElist.transport = 0;
-            end
-            
-            % Calculate LCOE contribution of the platform components
-            if numel(obj.bbPlatform) > 0
-                annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.bbPlatform.lifetime) / ((1+costsParams.WACC)^obj.bbPlatform.lifetime - 1);
-                obj.LCOElist.platforms = (obj.CAPEXlist.platforms * annuity_factor + obj.OPEXlist.platforms) * 1e6 / energyProduction;
-            else
-                obj.LCOElist.platforms = 0;
-            end
-            
-            % Calculate LCOE contribution of other costs using annuity
-            % factor of the turbines
-            annuity_factor = (costsParams.WACC * (1 + costsParams.WACC)^obj.turbines(1).lifetime) / ((1+costsParams.WACC)^obj.turbines(1).lifetime - 1);
-            obj.LCOElist.other = ((obj.CAPEXlist.management + obj.CAPEXlist.insurance) * annuity_factor) * 1e6 / energyProduction;
-            
-            % Sum all individual LCOE components
-            obj.LCOE = obj.LCOElist.turbines + obj.LCOElist.transport + obj.LCOElist.platforms + obj.LCOElist.other;
-        end
-        
-        function cost = calculateCostOnLoc(obj)
-            global costsParams;
-            global property;
-            % Calculate CAPEX without tranport to shore
-            % calculate turbine capex
-            turbCapex = 0;
-            for i = 1:numel(obj.turbines)
-                % turb equipment + installation costs
-                turbCapex = turbCapex + obj.turbines(i).calculateCost();
-            end
-            
-            transpCapex = 0;
-            % Calculate inter-array cables capex
-            if numel(obj.cables) > 0
-                for i = 1:numel(obj.cables)
-                    transpCapex = transpCapex + obj.cables(i).calculateCost();
-                end
-            end
-            % calculate inter-array pipes capex
-            if numel(obj.pipes) > 0
-                for i = 1:numel(obj.pipes)
-                    transpCapex = transpCapex + obj.pipes(i).calculateCost();
-                end
-            end
-            
-            total_equipm_install_cost = turbCapex + transpCapex;
-            
-            % Calculate other costs
-            managementCost = costsParams.management * (obj.ratedPower / 1e9);
-            insuranceCost = total_equipm_install_cost * costsParams.insurance;
-            
-            obj.CAPEX = total_equipm_install_cost + managementCost + insuranceCost;
-            obj.CAPEXlist.turbines = turbCapex;
-            obj.CAPEXlist.transport = transpCapex;
-            obj.CAPEXlist.platforms = 0;
-            obj.CAPEXlist.management = managementCost;
-            obj.CAPEXlist.insurance = insuranceCost;
-            
-            % calculate opex
-            obj.OPEX = costsParams.maintenance * total_equipm_install_cost;
-            obj.OPEXlist.turbines = obj.CAPEXlist.turbines * costsParams.maintenance;
-            obj.OPEXlist.transport = obj.CAPEXlist.transport * costsParams.maintenance;
-            obj.OPEXlist.platforms = obj.CAPEXlist.platforms * costsParams.maintenance;
-            
-            % calculate LCOE/LCOH
-            obj.calculateLCOE();
-            
-%             if obj.scenario == "H2inTurb"
-%                 obj.H2Production = (energyProduction * 1e6) / property.H2specEnergy; % kg
-%                 obj.LCOH = (obj.CAPEX * costsParams.annuityFactor * 1.03 + obj.OPEX) * 1e6 / obj.H2Production;
-%             end
+            obj.LCOEOnshore = (obj.costOnshore * 1e6) / energyProductionOnshore;
+            obj.LCOEOnLoc = (obj.costOnLoc * 1e6) / energyProductionOnLoc;
         end
         
         function mean = calc_mean_wind(obj)

@@ -51,10 +51,10 @@ classdef Platform < handle
             obj.yIntrin = yIntrin;
             obj.node = grid.intrin2node(xIntrin, yIntrin);
             
-            obj.electrolyserEff = property.platform.electrolyserEff / 100;
-            obj.converterEff = property.platform.transfEff / 100;
-            obj.comprEff = property.platform.comprEff / 100;
-            obj.comprAdiaEff = property.platform.comprAdiaEff / 100;
+            obj.electrolyserEff = property.platform.electrolyserEff;
+            obj.converterEff = property.platform.transfEff;
+            obj.comprEff = property.platform.comprEff;
+            obj.comprAdiaEff = property.platform.comprAdiaEff;
             obj.H2compressibility = property.H2compressibility;
             obj.H2specHeatRatio = property.specHeatRatio;
             obj.gasTemp = property.baseTemp;
@@ -120,7 +120,7 @@ classdef Platform < handle
             % Only compressor needed for H2 to H2 transport
             flowRate = obj.inputPower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24 / 1e6; % Mm3 / day
             obj.compPower = 4063.9 * (obj.H2specHeatRatio / (obj.H2specHeatRatio-1)) * flowRate * obj.gasTemp * obj.H2compressibility * (1/obj.comprAdiaEff) * ((obj.outPressure / obj.inPressure)^((obj.H2specHeatRatio - 1)/obj.H2specHeatRatio)-1);
-            obj.compPower = obj.compPower * 1/obj.comprEff;
+            obj.compPower = obj.compPower / obj.comprEff;
             
             %outPower = obj.inputPower - obj.compPower;
             outPower = obj.inputPower;

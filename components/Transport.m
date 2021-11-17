@@ -115,7 +115,7 @@ classdef Transport < handle
                 try
                     next_projX = grid.X(x, y);
                 catch
-                    disp("Oh fuck")
+                    disp("Oh shit")
                 end
                 next_projY = grid.Y(x,y);
                 next_proj = [next_projX, next_projY];
