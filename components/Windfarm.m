@@ -53,7 +53,8 @@ classdef Windfarm < handle
         costOnLoc;
         LCOEOnshore; % EUR / MWh
         LCOEOnLoc; % EUR / MWh
-        LCOH; % EUR / kg
+        LCOHOnshore; % EUR / kg
+        LCOHOnLoc; % EUR / kg
 
         H2Production; % kg
         
@@ -636,7 +637,7 @@ classdef Windfarm < handle
             end
 
             if transp.power_rating < obj.ratedPower
-                error("The power rating of the backbone is too low for the farm.")
+                error("The power rating of the backbone is too low.")
             end
             
             transp.length = obj.bbLength;
@@ -776,8 +777,9 @@ classdef Windfarm < handle
             obj.costOnshore = totalCostsShore;
             obj.costOnLoc = totalCostsOnLoc;
             
-            % calculate LCOE
+            % calculate LCOE/LCOH
             obj.calculateLCOE();
+            obj.calculateLCOH();
         end
         
         function calculateLCOE(obj)
@@ -786,6 +788,16 @@ classdef Windfarm < handle
             
             obj.LCOEOnshore = (obj.costOnshore * 1e6) / energyProductionOnshore;
             obj.LCOEOnLoc = (obj.costOnLoc * 1e6) / energyProductionOnLoc;
+        end
+
+        function calculateLCOH(obj)
+            global property;
+            energyProductionOnLoc = obj.outputEnergy * 1e9; % Wh
+
+            H2production = energyProductionOnLoc / property.H2specEnergy; % kg (HHV)
+            
+            obj.LCOHOnshore = (obj.costOnshore * 1e6) / H2production;
+            obj.LCOHOnLoc = (obj.costOnLoc * 1e6) / H2production;
         end
         
         function mean = calc_mean_wind(obj)

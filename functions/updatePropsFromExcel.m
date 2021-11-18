@@ -11,6 +11,13 @@ function [property, costTables] = updatePropsFromExcel(fileName)
         error("A critical parameter in excel is missing. Please check the excel sheet.");
     end
     % READ AND STORE ALL VALUES IN EXCEL TO CORRESPONDING PROPERTIES
+    % Simulation scenario
+    property.scenario = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'K4:K5').Variables;
+    property.scenario = property.scenario{1};
+
+    if property.scenario ~= "fullElectric" || property.scenario ~= "H2inTurb"
+        error("Ïncorrect simulation scenario in Excel file")
+    end
     % Farm size and power
     property.farmDim = [excel.Var2(2), excel.Var2(3)];
     property.farmPower = excel.Var2(4); % GW
