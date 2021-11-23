@@ -658,9 +658,9 @@ classdef grid < handle
 %                     end
 %                 end
                 if any(lines == i)
-                    plot(xCoord, yCoord,'b', 'LineWidth', 4, 'Color', '#ff0000');
+                    plot(xCoord, yCoord,'b', 'LineWidth', 2, 'Color', '#ff0000');
                 else
-                    plot(xCoord, yCoord,'b', 'LineWidth', 4, 'Color', '#349eeb');
+                    plot(xCoord, yCoord,'b', 'LineWidth', 2, 'Color', '#349eeb');
                 end
                 hold on;
             end
@@ -669,7 +669,7 @@ classdef grid < handle
             [xProjCoast, yProjCoast] = projfwd(obj.projection, coastLines.coastlat, coastLines.coastlon);
             [xProjCity, yProjCity] = projfwd(obj.projection, citiesLat, citiesLon);
             plot(xProjCoast, yProjCoast);
-            plot(xProjCity, yProjCity, 'o', 'MarkerSize', 10, 'LineWidth', 5);
+            plot(xProjCity, yProjCity, 'o', 'MarkerSize', 3, 'LineWidth', 2);
             
             % Plot bbNodes
 %             bbNodes_lat = obj.bbNodes(:).coords(1);

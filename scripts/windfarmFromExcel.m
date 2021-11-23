@@ -6,6 +6,9 @@ cost_params;
 global costTables;
 
 fileName = "Parameters.xlsm";
+% dimensions of North Sea are approx 470 x 590
+x = 100;
+y = 350;
 
 % Load parameters from excel file
 [property, costTables] = updatePropsFromExcel(fileName);
@@ -13,7 +16,7 @@ fileName = "Parameters.xlsm";
 % Reset grid mask
 g.resetMask();
 
-farm = Windfarm(g, 550, 100, false);
+farm = Windfarm(g, y, x, false);
 if numel(farm.turbines) > 0
     farm.connect2backbone(g, 50);
     farm.calculate_power();
