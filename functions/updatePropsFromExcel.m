@@ -15,7 +15,7 @@ function [property, costTables] = updatePropsFromExcel(fileName)
     property.scenario = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'K4:K5').Variables;
     property.scenario = property.scenario{1};
 
-    if property.scenario ~= "fullElectric" || property.scenario ~= "H2inTurb"
+    if ~(property.scenario == "fullElectric" || property.scenario == "H2inTurb")
         error("Ïncorrect simulation scenario in Excel file")
     end
     % Farm size and power

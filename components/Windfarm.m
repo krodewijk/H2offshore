@@ -767,7 +767,8 @@ classdef Windfarm < handle
                 % calculate compressor energy needed in one year
                 comprEnergy = obj.bbPlatform.compPower * 8760 / 1e6; % MWh
 
-                % make a simple electricity cost estimation of the farm
+                % make a simple electricity cost estimation of the farm --
+                % DOESNT WORK!!!!
                 electricityPrice = (totalCostsOnLoc * 1e6) / (obj.outputEnergy * 1000); % EUR/MWh
 
                 comprPrice = comprEnergy * electricityPrice / 1e6; % M-EUR
