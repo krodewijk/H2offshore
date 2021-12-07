@@ -1,10 +1,17 @@
 close all;
 
 global property;
+global costTables;
+
+fileName = "Parameters.xlsm";
 
 % Search in entire north sea and create wind farms
 props;
 cost_params;
+
+% Load parameters from excel file
+[property, costTables] = updatePropsFromExcel(fileName);
+property.scenario = "fullElectric";
 
 g.resetMask();
 
@@ -15,6 +22,7 @@ y_step = property.farmDim(2);
 
 LCOE = zeros(size(g.lat));
 LCOE_onloc = zeros(size(g.lat));
+floating = zeros(size(g.lat));
 
 fprintf(1,' Progress:    ');
 for x = 1:x_step:xIntrin_size-y_step
@@ -23,11 +31,10 @@ for x = 1:x_step:xIntrin_size-y_step
         if numel(farm.turbines) > 0
             farm.connect2backbone(g, 50);
             farm.calculate_power();
-            farm.calculateCost();
-            LCOE(x:(x+x_step), y:(y+y_step)) = farm.LCOE;
-            
-            farm.calculateCostOnLoc();
-            LCOE_onloc(x:(x+x_step), y:(y+y_step)) = farm.LCOE;
+            farm.calculateCost(g);
+            LCOE(x:(x+x_step), y:(y+y_step)) = farm.LCOEOnshore;
+            LCOE_onloc(x:(x+x_step), y:(y+y_step)) = farm.LCOEOnLoc;
+            floating(x:(x+x_step), y:(y+y_step)) = farm.turbines(1).floating;
         end
         %display(num2str(y))
     end

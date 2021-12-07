@@ -109,7 +109,7 @@ property.platform.floating = false; %
 property.platform.lifetime = 20;
 
 % Electrolyser parameters
-property.platform.electrolyserEff = 85; % percent
+property.platform.electrolyserEff = 0.85; % percent
 property.platform.electrolyserOutPress = 50; % Bar
 
 % Transformer parameters
@@ -117,8 +117,8 @@ property.platform.transfEff = 0.95; % percent
 property.platform.transOutVolt = 220; % kV
 
 % Compressor parameters
-property.platform.comprEff = 80; % percent
-property.platform.comprAdiaEff = 90; % percent
+property.platform.comprEff = 0.90; % percent
+property.platform.comprAdiaEff = 0.90; % percent
 property.platform.comprOutPress = 30; %bar
 
 %----------------------

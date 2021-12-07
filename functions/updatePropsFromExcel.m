@@ -66,18 +66,18 @@ function [property, costTables] = updatePropsFromExcel(fileName)
 
     %% READ AND STORE ALL DEPTH AND DISTANCE DEPENDENT COST PARAMETERS FROM EXCEL
     warning('off','all');
-    costTables.fixed.grid = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F57:W76', 'ReadRowNames', true, 'ReadVariableNames', true);
-    costTables.fixed.turbine = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F78:W97', 'ReadRowNames', true, 'ReadVariableNames', true);
-    costTables.fixed.h2offshore = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F99:W118', 'ReadRowNames', true, 'ReadVariableNames', true);
-    costTables.fixed.h2onshore = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F120:W139', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.fixed.grid = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F57:W76', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.fixed.turbine = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F78:W97', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.fixed.h2toshore = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F99:W118', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.fixed.h2onloc = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F141:W160', 'ReadRowNames', true, 'ReadVariableNames', true);
     
-    costTables.float.grid = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F141:W160', 'ReadRowNames', true, 'ReadVariableNames', true);
-    costTables.float.turbine = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F162:W181', 'ReadRowNames', true, 'ReadVariableNames', true);
-    costTables.float.h2offshore = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F183:W202', 'ReadRowNames', true, 'ReadVariableNames', true);
-    costTables.float.h2onshore = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F204:W223', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.float.grid = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F162:W181', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.float.turbine = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F183:W202', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.float.h2toshore = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F204:W223', 'ReadRowNames', true, 'ReadVariableNames', true);
+    costTables.float.h2onloc = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F246:W265', 'ReadRowNames', true, 'ReadVariableNames', true);
     
-    costTables.breakevens = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'G225:W225');
-    costTables.distances = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'G57:W57');
-    costTables.depths = readtable("Parameters.xlsm", 'Sheet', 'Matlab Export', 'Range', 'F58:F76');
+    costTables.breakevens = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'G268:W268');
+    costTables.distances = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'G57:W57');
+    costTables.depths = readtable(fileName, 'Sheet', 'Matlab Export', 'Range', 'F58:F76');
     warning('on','all')
 end

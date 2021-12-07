@@ -150,10 +150,10 @@ classdef Turbine < handle
                 % hydrogen output
                 if obj.floating
                     % and floating
-                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.h2onshore.Variables, double(distance), double(abs(obj.depth)));
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.h2toshore.Variables, double(distance), double(abs(obj.depth)));
                 else
                     % and fixed
-                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.h2onshore.Variables, double(distance), double(abs(obj.depth)));
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.h2toshore.Variables, double(distance), double(abs(obj.depth)));
                 end
             else
                 % electricity output
@@ -188,10 +188,10 @@ classdef Turbine < handle
                 % hydrogen output
                 if obj.floating
                     % and floating
-                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.h2offshore.Variables, double(distance), double(abs(obj.depth)));
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.float.h2onloc.Variables, double(distance), double(abs(obj.depth)));
                 else
                     % and fixed
-                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.h2offshore.Variables, double(distance), double(abs(obj.depth)));
+                    cost = interp2(costTables.distances.Variables, costTables.depths.Variables, costTables.fixed.h2onloc.Variables, double(distance), double(abs(obj.depth)));
                 end
             else
                 % electricity output

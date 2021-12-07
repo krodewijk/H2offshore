@@ -81,7 +81,8 @@ classdef Pipe < Transport
                 gasFlowTot = (obj.inputPower+obj.bbBasePower) * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
                 gasFlowBase = obj.bbBasePower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
                 
-                obj.outPressure = obj.pressure_drop(gasFlowTot) + (obj.inPressure - obj.pressure_drop(gasFlowBase));
+                %obj.outPressure = obj.pressure_drop(gasFlowTot) + (obj.inPressure - obj.pressure_drop(gasFlowBase));
+                obj.outPressure = obj.pressure_drop(gasFlowTot);
             else
                 gasFlow = obj.inputPower * (obj.basePress * obj.H2density)^-1 * obj.H2specEnergy^-1 * 24;
                 obj.actualFlow = gasFlow; % in standard conditions

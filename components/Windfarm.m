@@ -49,6 +49,8 @@ classdef Windfarm < handle
         mean_depth; % average water depth (m)
         
         transport2shoreLosses;
+        comprEnergy = 0; % MWh
+        comprPrice = 0; % M-EUR
         costOnshore;
         costOnLoc;
         LCOEOnshore; % EUR / MWh
@@ -745,9 +747,10 @@ classdef Windfarm < handle
             obj.capacityFactor = obj.inputPower / obj.ratedPower;
         end
         
-        function calculateCost(obj)
+        function calculateCost(obj, g)
             % Read the correct value from the costTable
             global costTables;
+            global property;
             
             numTurbs = numel(obj.turbines);
             totalCostsShore = 0; % M-EUR
@@ -763,16 +766,22 @@ classdef Windfarm < handle
             end
 
             % Add hydrogen compression costs
-            if obj.bbPlatform.kind == "H2toH2"
+            if property.scenario == "H2inTurb"
                 % calculate compressor energy needed in one year
-                comprEnergy = obj.bbPlatform.compPower * 8760 / 1e6; % MWh
+                obj.comprEnergy = obj.bbPlatform.compPower * 8760 / 1e6; % MWh
 
-                % make a simple electricity cost estimation of the farm --
-                % DOESNT WORK!!!!
-                electricityPrice = (totalCostsOnLoc * 1e6) / (obj.outputEnergy * 1000); % EUR/MWh
+                % make a simple electricity cost estimation of one electricity turbine
+                oldScen = property.scenario;
+                property.scenario = "fullElectric";
+                elecTurb = Turbine(g, obj.turbines(1).xIntrin, obj.turbines(1).yIntrin);
+                elecTurb.calculateCostFromExcelOnLoc(costTables, obj.bbLength);
+                property.scenario = oldScen;
+                
+                electricityPrice = (elecTurb.costOnLoc * 1e6) / (elecTurb.power * 8760 / 1e6); % EUR/MWh
 
-                comprPrice = comprEnergy * electricityPrice / 1e6; % M-EUR
-                totalCostsShore = totalCostsShore + comprPrice;
+                obj.comprPrice = obj.comprEnergy * electricityPrice / 1e6; % M-EUR
+
+                totalCostsShore = totalCostsShore + obj.comprPrice;
             end
             
             obj.costOnshore = totalCostsShore;
@@ -837,7 +846,7 @@ classdef Windfarm < handle
                 xCoord = grid.X(obj.turbines(i).xIntrin, obj.turbines(i).yIntrin);
                 yCoord = grid.Y(obj.turbines(i).xIntrin, obj.turbines(i).yIntrin);
                 
-                plot(xCoord, yCoord, 'rx', 'MarkerSize', 20, 'LineWidth',4);
+                plot(xCoord, yCoord, 'rx', 'MarkerSize', 3, 'LineWidth',4);
                 hold on;
             end
             
@@ -901,11 +910,11 @@ classdef Windfarm < handle
             
             % Plot central subplatform
             if obj.centralSubPresent
-                plot(grid.X(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), grid.Y(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), "sb", 'MarkerSize', 10, 'LineWidth', 7);
+                plot(grid.X(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), grid.Y(obj.subPlatform.xIntrin, obj.subPlatform.yIntrin), "sb", 'MarkerSize', 3, 'LineWidth', 7);
             end
             
             if numel(obj.bbPlatform) > 0
-                plot(grid.X(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), grid.Y(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), "sb", 'MarkerSize', 10, 'LineWidth', 7);
+                plot(grid.X(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), grid.Y(obj.bbPlatform.xIntrin, obj.bbPlatform.yIntrin), "sb", 'MarkerSize', 3, 'LineWidth', 7);
             end
             
             % Plot bounding box
