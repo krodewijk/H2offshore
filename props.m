@@ -6,7 +6,7 @@ global property;
 % What scenario to use?
 % 'H2inTurb'     --> Create H2 directly in turbine 
 % 'fullElectric' --> Onshore electrolyzer
-% 'electricToH2' --> Offshore electrolyzer
+% 'electricToH2' --> Offshore electrolyzer --> NOT USED ANYMORE
 property.scenario = 'H2inTurb';
 
 

@@ -1,3 +1,5 @@
+% Add the 'scripts', çomponents, and functions folder to the Matlab path
+
 close all;
 
 props;
