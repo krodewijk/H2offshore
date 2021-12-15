@@ -8,8 +8,8 @@ global costTables;
 
 fileName = "Parameters.xlsm";
 % dimensions of North Sea are approx 470 x 590
-x = 140;
-y = 370;
+x = 250;
+y = 150;
 
 % Load parameters from excel file
 [property, costTables] = updatePropsFromExcel(fileName);

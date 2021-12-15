@@ -607,25 +607,33 @@ classdef Windfarm < handle
                     closestbbNodes(end+1) = i;
                 end
             end
+
+            % Find the closest shore connection point from the platform
+            % location
+
             
-            % For each node, calculate the distance to shore
+            % For each of the two nodes, calculate the distance to shore
             numNodes = numel(closestbbNodes);
+            numConPoints = numel(grid.shapes.connectionPoints);
             min_length = nan;
-            endNode = grid.shapes.connectionPoints(obj.onshoreConnection).bbNode;
             
             for i = 1:numNodes
                 % Calculate distance from bblatfom 
                 [coordX, coordY] = projfwd(grid.projection, grid.bbNodes(closestbbNodes(i)).coords(1), grid.bbNodes(closestbbNodes(i)).coords(2));
                 dist = norm([coordX,coordY] - [end_coords(1), end_coords(2)]) / 1000;
-                
-                [lengthFromNode, nodesPassed, linesPassed] = grid.navigateBB(closestbbNodes(i), endNode);
-                total_length = dist + lengthFromNode;
-                    
-                if isnan(min_length) || total_length < min_length
-                    min_length = total_length;
-                    obj.bbLength = min_length;
-                    obj.bbLines = linesPassed;
+                % also find the closest connection point
+                for k = 1:numConPoints
+                    endNode = grid.shapes.connectionPoints(k).bbNode;
+                    [lengthFromNode, nodesPassed, linesPassed] = grid.navigateBB(closestbbNodes(i), endNode);
+                    total_length = dist + lengthFromNode;
+                        
+                    if isnan(min_length) || total_length < min_length
+                        min_length = total_length;
+                        obj.bbLength = min_length;
+                        obj.bbLines = linesPassed;
+                    end
                 end
+                
             end
             
             % Create a pipe/cable that's of the same length and properties of the
@@ -766,7 +774,7 @@ classdef Windfarm < handle
             end
 
             % Add hydrogen compression costs
-            if property.scenario == "H2inTurb"
+            if property.scenario == "H2inTurb" && numel(obj.bbPlatform) > 0
                 % calculate compressor energy needed in one year
                 obj.comprEnergy = obj.bbPlatform.compPower * 8760 / 1e6; % MWh
 
@@ -846,7 +854,7 @@ classdef Windfarm < handle
                 xCoord = grid.X(obj.turbines(i).xIntrin, obj.turbines(i).yIntrin);
                 yCoord = grid.Y(obj.turbines(i).xIntrin, obj.turbines(i).yIntrin);
                 
-                plot(xCoord, yCoord, 'rx', 'MarkerSize', 3, 'LineWidth',4);
+                plot(xCoord, yCoord, 'rx', 'MarkerSize', 7, 'LineWidth',5);
                 hold on;
             end
             
